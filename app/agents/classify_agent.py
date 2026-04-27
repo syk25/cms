@@ -1,16 +1,18 @@
 import json
+import logging
 from app.config import settings
 from app.llm.claude_client import ClaudeClient
+
+logger = logging.getLogger(__name__)
 
 _client = ClaudeClient(api_key=settings.anthropic_api_key, model="claude-haiku-4-5")
 
 
-def _parse_json(text: str) -> dict | list:
-    """LLM 응답에서 코드블록 제거 후 JSON 파싱."""
+def _parse_json(text: str) -> dict:
     text = text.strip()
     if text.startswith("```"):
-        text = text.split("\n", 1)[1]  # 첫 줄 (```json) 제거
-        text = text.rsplit("```", 1)[0]  # 마지막 ``` 제거
+        text = text.split("\n", 1)[1]
+        text = text.rsplit("```", 1)[0]
     return json.loads(text.strip())
 
 
@@ -26,7 +28,11 @@ def suggest_categories(texts: list[str]) -> list[str]:
         ),
         max_tokens=256,
     )
-    return _parse_json(result["text"])["categories"]
+    try:
+        return _parse_json(result["text"])["categories"]
+    except (json.JSONDecodeError, KeyError) as e:
+        logger.error(f"suggest_categories 파싱 실패: {e}, 원문: {result['text']}")
+        return []
 
 
 def classify_content(text: str, categories: list[str]) -> dict:
@@ -41,4 +47,8 @@ def classify_content(text: str, categories: list[str]) -> dict:
         ),
         max_tokens=256,
     )
-    return _parse_json(result["text"])
+    try:
+        return _parse_json(result["text"])
+    except (json.JSONDecodeError, KeyError) as e:
+        logger.error(f"classify_content 파싱 실패: {e}, 원문: {result['text']}")
+        return {"category": None, "tags": []}

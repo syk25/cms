@@ -3,6 +3,8 @@ import logging
 from app.config import settings
 from app.llm.claude_client import ClaudeClient
 from app.db.categories_repo import get_all_categories, save_categories, is_empty
+from app.db.raw_contents_repo import save_raw_content, get_category_id_by_name
+
 
 logger = logging.getLogger(__name__)
 
@@ -55,8 +57,8 @@ def classify_content(text: str, categories: list[str]) -> dict:
         return {"category": None, "tags": []}
 
 
-def run_ingest_pipeline(texts: list[str]) -> list[dict]:
-    """글감 목록을 받아 카테고리 분류까지 완료한 결과를 반환."""
+def run_ingest_pipeline(texts: list[str], source: str = "direct") -> list[dict]:
+    """글감 목록을 받아 분류 후 Supabase에 저장."""
     if is_empty():
         suggested = suggest_categories(texts)
         save_categories(suggested)
@@ -65,7 +67,18 @@ def run_ingest_pipeline(texts: list[str]) -> list[dict]:
 
     results = []
     for text in texts:
-        result = classify_content(text, categories)
-        results.append({"text": text, **result})
+        classified = classify_content(text, categories)
+        category_id = (
+            get_category_id_by_name(classified["category"])
+            if classified["category"]
+            else None
+        )
+        saved = save_raw_content(
+            text=text,
+            source=source,
+            category_id=category_id,
+            tags=classified["tags"],
+        )
+        results.append(saved)
 
     return results

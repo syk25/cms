@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     notion_api_key: str
     notion_token: str
     notion_database_id: str
+    voyage_api_key: str
 
     model_config = SettingsConfigDict(
         env_file=".env",

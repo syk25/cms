@@ -23,3 +23,6 @@ wheels/
 .vscode/
 .idea/
 .DS_Store
+
+# ChromaDB
+chroma_db/

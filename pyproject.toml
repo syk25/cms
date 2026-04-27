@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "anthropic>=0.97.0",
+    "chromadb>=1.5.8",
     "fastapi>=0.136.1",
     "notion-client==2.2.1",
     "notion2md>=2.9.0",
@@ -14,4 +15,5 @@ dependencies = [
     "python-dotenv>=1.2.2",
     "supabase>=2.29.0",
     "uvicorn[standard]>=0.46.0",
+    "voyageai>=0.3.7",
 ]

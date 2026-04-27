@@ -12,8 +12,18 @@ client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
 
 
 def _parse_json(text: str) -> dict:
+    text = text.strip()
+    # 코드 블록 안 JSON 먼저 시도
     match = re.search(r"```(?:json)?\s*(.*?)\s*```", text, re.DOTALL)
-    return json.loads(match.group(1) if match else text)
+    if match:
+        candidate = match.group(1).strip()
+        if candidate:
+            return json.loads(candidate)
+    # 코드 블록 없으면 텍스트에서 { ... } 추출
+    obj_match = re.search(r"\{.*\}", text, re.DOTALL)
+    if obj_match:
+        return json.loads(obj_match.group(0))
+    return json.loads(text)
 
 
 class InstagramContent(BaseModel):
@@ -72,7 +82,7 @@ def brunch_node(state: DistributeState) -> dict:
 
     response = client.messages.create(
         model="claude-haiku-4-5-20251001",
-        max_tokens=1500,
+        max_tokens=3000,
         messages=[{"role": "user", "content": prompt}],
     )
     data = _parse_json(response.content[0].text)

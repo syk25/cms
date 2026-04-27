@@ -25,6 +25,7 @@ class FinalizeRequest(BaseModel):
     text: str
     topic: str
     tags: list[str] = []
+    raw_content_ids: list[str] = []
 
 
 class FinalizeResponse(BaseModel):
@@ -46,8 +47,10 @@ class JudgeResponse(BaseModel):
 
 @router.post("/finalize", response_model=FinalizeResponse)
 async def finalize(req: FinalizeRequest):
-    """원본 확정 — Supabase contents 저장 + ChromaDB 임베딩"""
-    return await finalize_content(text=req.text, topic=req.topic, tags=req.tags)
+    """원본 확정 — Supabase contents 저장 + ChromaDB 임베딩 + 글감 연결"""
+    return await finalize_content(
+        text=req.text, topic=req.topic, tags=req.tags, raw_content_ids=req.raw_content_ids
+    )
 
 
 @router.post("/judge", response_model=JudgeResponse)

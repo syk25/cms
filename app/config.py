@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     voyage_api_key: str
     instagram_access_token: str = ""
     instagram_user_id: str = ""
+    chroma_db_path: str = "./chroma_db"
 
     model_config = SettingsConfigDict(
         env_file=".env",

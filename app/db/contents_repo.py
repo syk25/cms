@@ -7,6 +7,14 @@ def get_content(content_id: str) -> dict | None:
     return result.data[0] if result.data else None
 
 
+def link_raw_contents(content_id: str, raw_content_ids: list[str]) -> None:
+    if not raw_content_ids:
+        return
+    db = get_supabase()
+    rows = [{"content_id": content_id, "raw_content_id": rid} for rid in raw_content_ids]
+    db.table("content_sources").insert(rows).execute()
+
+
 def save_content(text: str, tags: list[str]) -> dict:
     db = get_supabase()
     row = {"text": text, "tags": tags}

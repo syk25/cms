@@ -1,10 +1,11 @@
 import chromadb
 from chromadb.config import Settings
+from app.config import settings as app_settings
 
 
 def get_chroma_client() -> chromadb.ClientAPI:
     return chromadb.PersistentClient(
-        path="./chroma_db", settings=Settings(anonymized_telemetry=False)
+        path=app_settings.chroma_db_path, settings=Settings(anonymized_telemetry=False)
     )
 
 

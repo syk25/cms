@@ -2,7 +2,7 @@
 
 import anthropic
 from app.config import settings
-from app.db.contents_repo import save_content, update_embedding_id
+from app.db.contents_repo import save_content, update_embedding_id, link_raw_contents
 from app.services.embedding import embed_content
 
 client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
@@ -57,9 +57,14 @@ async def cowrite_draft(
     return {"draft": draft, "history": history}
 
 
-async def finalize_content(text: str, topic: str, tags: list[str]) -> dict:
+async def finalize_content(
+    text: str, topic: str, tags: list[str], raw_content_ids: list[str] = []
+) -> dict:
     row = save_content(text=text, tags=tags)
     content_id = row["id"]
-    embedding_id = embed_content(content_id=content_id, text=text, topic=topic, tags=tags)
+    link_raw_contents(content_id, raw_content_ids)
+    embedding_id = embed_content(
+        content_id=content_id, text=text, topic=topic, tags=tags
+    )
     update_embedding_id(content_id=content_id, embedding_id=embedding_id)
     return {"content_id": content_id, "embedding_id": embedding_id}

@@ -1,7 +1,8 @@
+import os
 import requests
 import streamlit as st
 
-API_BASE = "http://localhost:8000"
+API_BASE = os.getenv("API_BASE", "http://localhost:8000")
 
 st.set_page_config(page_title="CMS - 발행 검토", layout="wide")
 st.title("콘텐츠 매니지먼트 - 플랫폼 발행")

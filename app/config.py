@@ -9,6 +9,8 @@ class Settings(BaseSettings):
     notion_token: str
     notion_database_id: str
     voyage_api_key: str
+    instagram_access_token: str = ""
+    instagram_user_id: str = ""
 
     model_config = SettingsConfigDict(
         env_file=".env",

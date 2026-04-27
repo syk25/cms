@@ -32,3 +32,15 @@ def get_category_id_by_name(category_name: str) -> str | None:
     if result.data:
         return result.data[0]["id"]
     return None
+
+
+def get_all_raw_contents(limit: int = 100) -> list[dict]:
+    db = get_supabase()
+    result = (
+        db.table("raw_contents")
+        .select("*")
+        .order("created_at", desc=True)
+        .limit(limit)
+        .execute()
+    )
+    return result.data

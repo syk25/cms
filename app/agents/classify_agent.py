@@ -2,6 +2,7 @@ import json
 import logging
 from app.config import settings
 from app.llm.claude_client import ClaudeClient
+from app.db.categories_repo import get_all_categories, save_categories, is_empty
 
 logger = logging.getLogger(__name__)
 
@@ -52,3 +53,19 @@ def classify_content(text: str, categories: list[str]) -> dict:
     except (json.JSONDecodeError, KeyError) as e:
         logger.error(f"classify_content 파싱 실패: {e}, 원문: {result['text']}")
         return {"category": None, "tags": []}
+
+
+def run_ingest_pipeline(texts: list[str]) -> list[dict]:
+    """글감 목록을 받아 카테고리 분류까지 완료한 결과를 반환."""
+    if is_empty():
+        suggested = suggest_categories(texts)
+        save_categories(suggested)
+
+    categories = [c["category_name"] for c in get_all_categories()]
+
+    results = []
+    for text in texts:
+        result = classify_content(text, categories)
+        results.append({"text": text, **result})
+
+    return results

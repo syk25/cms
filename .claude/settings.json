@@ -22,7 +22,8 @@
       "Bash(lsof -ti:8501)",
       "Bash(open http://localhost:8501)",
       "Bash(git -C /Users/syk25/workspace/syk25-dev/cms diff --stat)",
-      "Bash(git -C /Users/syk25/workspace/syk25-dev/cms status --short)"
+      "Bash(git -C /Users/syk25/workspace/syk25-dev/cms status --short)",
+      "Bash(fly status *)"
     ]
   }
 }

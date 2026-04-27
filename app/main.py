@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from app.routers import ingest, discovery, cowrite
+from app.routers import ingest, discovery, cowrite, distribute
 
 app = FastAPI(
     title="Content Management Service",
@@ -9,6 +9,7 @@ app = FastAPI(
 app.include_router(ingest.router)
 app.include_router(discovery.router)
 app.include_router(cowrite.router)
+app.include_router(distribute.router)
 
 
 @app.get("/health")

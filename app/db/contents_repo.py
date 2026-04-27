@@ -1,6 +1,12 @@
 from app.db.supabase_client import get_supabase
 
 
+def get_content(content_id: str) -> dict | None:
+    db = get_supabase()
+    result = db.table("contents").select("*").eq("id", content_id).execute()
+    return result.data[0] if result.data else None
+
+
 def save_content(text: str, tags: list[str]) -> dict:
     db = get_supabase()
     row = {"text": text, "tags": tags}

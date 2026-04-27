@@ -26,3 +26,6 @@ wheels/
 
 # ChromaDB
 chroma_db/
+
+# Runtime data
+data/user_memory.json

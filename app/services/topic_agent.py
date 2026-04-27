@@ -5,14 +5,14 @@ from app.services.embedding import search_raw_contents
 client = Anthropic(api_key=settings.anthropic_api_key)
 
 
-def recommend_topics(query: str, n_results: int = 5) -> str:
-    """사용자 질문 기반으로 글감 검색 후 주제 추천."""
+def recommend_topics(query: str, n_results: int = 5, memory_context: str = "") -> str:
     results = search_raw_contents(query, n_results=n_results)
 
     if not results:
         return "관련 글감을 찾지 못했어요. 글감을 먼저 추가해주세요."
 
     context = "\n\n".join([f"[{r['category']}] {r['text']}" for r in results])
+    memory_section = f"\n\n사용자 컨텍스트:\n{memory_context}" if memory_context else ""
 
     response = client.messages.create(
         model="claude-haiku-4-5",
@@ -20,7 +20,7 @@ def recommend_topics(query: str, n_results: int = 5) -> str:
         messages=[
             {
                 "role": "user",
-                "content": f"""다음은 사용자의 글감 목록입니다:
+                "content": f"""다음은 사용자의 글감 목록입니다:{memory_section}
 
 {context}
 

@@ -1,6 +1,10 @@
 import voyageai
 from app.config import settings
-from app.db.vectordb import get_chroma_client, get_raw_contents_collection
+from app.db.vectordb import (
+    get_chroma_client,
+    get_raw_contents_collection,
+    get_contents_collection,
+)
 from app.db.supabase_client import get_supabase
 
 voyage_client = voyageai.Client(api_key=settings.voyage_api_key)
@@ -104,3 +108,29 @@ def search_raw_contents(query: str, n_results: int = 5) -> list[dict]:
         )
 
     return output
+
+
+def embed_content(content_id: str, text: str, topic: str, tags: list[str]) -> str:
+    """글감 1개를 임베딩해서 ChromaDB에 저장. embedding_id 반환."""
+    result = voyage_client.embed([text], model="voyage-3")
+    embedding = result.embeddings[0]
+
+    client = get_chroma_client()
+    collection = get_contents_collection(client)
+
+    doc_id = str(content_id)
+
+    collection.upsert(
+        ids=[doc_id],
+        embeddings=[embedding],
+        documents=[text],
+        metadatas=[
+            {
+                "content_id": content_id,
+                "topic": topic,
+                "tags": ", ".join(tags),
+            }
+        ],
+    )
+
+    return doc_id

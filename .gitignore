@@ -29,3 +29,6 @@ chroma_db/
 
 # Runtime data
 data/user_memory.json
+
+# Local Settings
+.claude/

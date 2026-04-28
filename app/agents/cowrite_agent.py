@@ -1,11 +1,13 @@
 # app/agents/cowrite_agent.py
 
 import anthropic
+from anthropic import AsyncAnthropic
 from app.config import settings
 from app.db.contents_repo import save_content, update_embedding_id, link_raw_contents
 from app.services.embedding import embed_content
 
 client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+async_client = AsyncAnthropic(api_key=settings.anthropic_api_key)
 
 SYSTEM_PROMPT = """당신은 글쓰기 파트너입니다.
 사용자가 선택한 주제와 관련 글감을 바탕으로 초안을 작성하고,
@@ -60,6 +62,17 @@ async def cowrite_draft(
     history.append({"role": "assistant", "content": draft})
 
     return {"draft": draft, "history": history}
+
+
+async def stream_cowrite(messages: list[dict]):
+    async with async_client.messages.stream(
+        model="claude-haiku-4-5-20251001",
+        max_tokens=1000,
+        system=SYSTEM_PROMPT,
+        messages=messages,
+    ) as stream:
+        async for text in stream.text_stream:
+            yield text
 
 
 async def finalize_content(

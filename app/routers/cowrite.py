@@ -1,6 +1,7 @@
 from fastapi import APIRouter
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from app.agents.cowrite_agent import cowrite_draft, finalize_content
+from app.agents.cowrite_agent import cowrite_draft, finalize_content, stream_cowrite
 from app.agents.judge_agent import judge_draft
 
 router = APIRouter(prefix="/cowrite", tags=["cowrite"])
@@ -61,6 +62,34 @@ async def judge(req: JudgeRequest):
         draft=req.draft,
         related_contents=req.related_contents,
     )
+
+
+@router.post("/draft/stream")
+async def draft_stream(req: DraftRequest):
+    contents_text = "\n".join(f"- {c['text'][:200]}" for c in req.related_contents)
+    user_msg = (
+        f"주제: {req.topic}\n\n"
+        f"관련 글감:\n{contents_text}\n\n"
+        "위 글감을 바탕으로 초안을 작성해줘."
+    )
+    messages = [{"role": "user", "content": user_msg}]
+
+    async def generate():
+        async for chunk in stream_cowrite(messages):
+            yield chunk
+
+    return StreamingResponse(generate(), media_type="text/plain")
+
+
+@router.post("/revise/stream")
+async def revise_stream(req: ReviseRequest):
+    messages = req.history + [{"role": "user", "content": req.feedback}]
+
+    async def generate():
+        async for chunk in stream_cowrite(messages):
+            yield chunk
+
+    return StreamingResponse(generate(), media_type="text/plain")
 
 
 @router.post("/draft", response_model=CowriteResponse)

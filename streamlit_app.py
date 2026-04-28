@@ -13,7 +13,6 @@ tab_ingest, tab_write, tab_distribute = st.tabs(["글감 수집", "글 쓰기", 
 # ── 스트리밍 헬퍼 ──────────────────────────────────────────────────────────────
 
 def _iter_stream(url: str, payload: dict):
-    """텍스트 청크를 그대로 yield하는 단순 스트리밍 이터레이터."""
     with requests.post(url, json=payload, stream=True, timeout=60) as res:
         res.raise_for_status()
         for chunk in res.iter_content(chunk_size=None, decode_unicode=True):
@@ -22,7 +21,7 @@ def _iter_stream(url: str, payload: dict):
 
 
 class _DiscoveryStream:
-    """첫 줄(intent)을 파싱하고 나머지를 스트리밍하는 이터레이터."""
+    """첫 줄(intent)을 파싱하고 나머지를 스트리밍한다."""
 
     def __init__(self, url: str, payload: dict):
         self.url = url
@@ -93,16 +92,24 @@ with tab_ingest:
             st.dataframe(rows, use_container_width=True)
 
 
-# ── Tab 2: Write (Discovery + Cowriting 합침) ─────────────────────────────────
+# ── Tab 2: Write ──────────────────────────────────────────────────────────────
+#
+# Phase 흐름:
+#   start → recommended → discussing → drafting → done
+#
 with tab_write:
-    if "write_phase" not in st.session_state:
-        st.session_state["write_phase"] = "start"
-    if "write_messages" not in st.session_state:
-        st.session_state["write_messages"] = []
+    for key, default in [
+        ("write_phase", "start"),
+        ("write_messages", []),
+        ("discuss_history", []),
+        ("related_contents", []),
+    ]:
+        if key not in st.session_state:
+            st.session_state[key] = default
 
     phase = st.session_state["write_phase"]
 
-    # 대화 히스토리 렌더링
+    # 대화 히스토리 렌더링 (모든 phase 공통)
     for msg in st.session_state["write_messages"]:
         with st.chat_message(msg["role"]):
             st.markdown(msg["content"])
@@ -113,7 +120,7 @@ with tab_write:
             with st.chat_message("assistant"):
                 st.markdown(
                     "어떤 주제로 글을 쓰고 싶으세요?\n\n"
-                    "관심 있는 경험이나 키워드를 자유롭게 입력하면 관련 주제를 추천해드려요."
+                    "관심 있는 경험이나 키워드를 입력하면 관련 글감을 바탕으로 주제를 추천해드려요."
                 )
 
         query = st.text_area(
@@ -125,7 +132,9 @@ with tab_write:
         )
         if st.button("주제 추천 받기", type="primary", disabled=not query.strip()):
             q = query.strip()
-            st.session_state["write_messages"].append({"role": "user", "content": q})
+
+            with st.chat_message("user"):
+                st.markdown(q)
 
             discovery = _DiscoveryStream(
                 f"{API_BASE}/discovery/route/stream",
@@ -134,63 +143,150 @@ with tab_write:
             with st.chat_message("assistant"):
                 full_text = st.write_stream(discovery)
 
-            st.session_state["write_messages"].append(
-                {"role": "assistant", "content": full_text}
-            )
+            st.session_state["write_messages"].append({"role": "user", "content": q})
+            st.session_state["write_messages"].append({"role": "assistant", "content": full_text})
+
+            # RAG 검색 결과 별도 저장 → draft에 전달
+            try:
+                search_res = requests.post(
+                    f"{API_BASE}/discovery/search",
+                    json={"query": q},
+                    timeout=30,
+                )
+                if search_res.status_code == 200:
+                    st.session_state["related_contents"] = search_res.json().get("results", [])
+            except Exception:
+                st.session_state["related_contents"] = []
+
             st.session_state["write_phase"] = "recommended"
             st.rerun()
 
-    # ── recommended: 주제 선택 ────────────────────────────────────────────────
+    # ── recommended: 주제 선택 → 토의 시작 ───────────────────────────────────
     elif phase == "recommended":
         topic_input = st.text_input(
-            "추천 주제 중 하나를 복사하거나 직접 입력하세요",
+            "추천 주제 중 하나를 선택하거나 직접 입력하세요",
             placeholder="주제 입력...",
             key="topic_select_input",
         )
         col1, col2 = st.columns([2, 1])
         with col1:
-            if st.button("이 주제로 초안 작성", type="primary", disabled=not topic_input.strip()):
+            if st.button("이 주제로 토의하기", type="primary", disabled=not topic_input.strip()):
                 topic = topic_input.strip()
                 st.session_state["write_topic"] = topic
-                st.session_state["write_messages"].append(
-                    {"role": "user", "content": f"**주제 선택**: {topic}"}
-                )
+                st.session_state["discuss_history"] = []
 
+                # 토의 첫 메시지 자동 전송
+                first_msg = f"이 주제로 글을 써보려고 해요."
+                with st.chat_message("user"):
+                    st.markdown(f"**주제 선택**: {topic}")
                 with st.chat_message("assistant"):
-                    draft_text = st.write_stream(
+                    discuss_text = st.write_stream(
                         _iter_stream(
-                            f"{API_BASE}/cowrite/draft/stream",
-                            {"topic": topic, "related_contents": []},
+                            f"{API_BASE}/cowrite/discuss/stream",
+                            {"topic": topic, "history": [], "message": first_msg},
                         )
                     )
 
-                st.session_state["write_draft"] = draft_text
-                st.session_state["draft_edit"] = draft_text
-                # history: agent가 구성하는 user_message와 동일하게 맞춤
-                user_msg = f"주제: {topic}\n\n관련 글감:\n\n위 글감을 바탕으로 초안을 작성해줘."
-                st.session_state["write_history"] = [
-                    {"role": "user", "content": user_msg},
-                    {"role": "assistant", "content": draft_text},
-                ]
                 st.session_state["write_messages"].append(
-                    {"role": "assistant", "content": "초안이 완성됐어요. 아래에서 직접 편집하거나 퇴고 요청을 입력하세요."}
+                    {"role": "user", "content": f"**주제 선택**: {topic}"}
                 )
-                st.session_state["write_phase"] = "drafting"
+                st.session_state["write_messages"].append(
+                    {"role": "assistant", "content": discuss_text}
+                )
+                st.session_state["discuss_history"] = [
+                    {"role": "user", "content": first_msg},
+                    {"role": "assistant", "content": discuss_text},
+                ]
+                st.session_state["write_phase"] = "discussing"
                 st.rerun()
         with col2:
             if st.button("다른 주제 탐색"):
                 st.session_state["write_phase"] = "start"
                 st.rerun()
 
+    # ── discussing: 토의 멀티턴 ────────────────────────────────────────────────
+    elif phase == "discussing":
+        col_info, col_btn = st.columns([3, 1])
+        with col_info:
+            st.caption(f"주제: **{st.session_state.get('write_topic', '')}**")
+        with col_btn:
+            if st.button("초안 작성하기 →", type="primary"):
+                topic = st.session_state["write_topic"]
+                related = st.session_state.get("related_contents", [])
+                discuss_history = st.session_state.get("discuss_history", [])
+                discuss_notes = "\n".join(
+                    f"{m['role']}: {m['content'][:300]}"
+                    for m in discuss_history[-6:]
+                )
+
+                with st.chat_message("user"):
+                    st.markdown("초안 작성할게요.")
+                with st.chat_message("assistant"):
+                    draft_text = st.write_stream(
+                        _iter_stream(
+                            f"{API_BASE}/cowrite/draft/stream",
+                            {
+                                "topic": topic,
+                                "related_contents": related,
+                                "discuss_notes": discuss_notes,
+                            },
+                        )
+                    )
+
+                user_msg = (
+                    f"주제: {topic}\n\n"
+                    f"토의 내용:\n{discuss_notes}\n\n위를 바탕으로 초안을 작성해줘."
+                )
+                st.session_state["write_draft"] = draft_text
+                st.session_state["draft_edit"] = draft_text
+                st.session_state["write_history"] = [
+                    {"role": "user", "content": user_msg},
+                    {"role": "assistant", "content": draft_text},
+                ]
+                st.session_state["write_messages"].append(
+                    {"role": "user", "content": "초안 작성할게요."}
+                )
+                st.session_state["write_messages"].append(
+                    {"role": "assistant", "content": "초안이 완성됐어요. 아래에서 편집하거나 퇴고 요청을 입력하세요."}
+                )
+                st.session_state["write_phase"] = "drafting"
+                st.rerun()
+
+        # 토의 채팅 입력
+        user_input = st.chat_input("메시지를 입력하세요")
+        if user_input:
+            topic = st.session_state["write_topic"]
+            history = st.session_state.get("discuss_history", [])
+
+            with st.chat_message("user"):
+                st.markdown(user_input)
+            with st.chat_message("assistant"):
+                response_text = st.write_stream(
+                    _iter_stream(
+                        f"{API_BASE}/cowrite/discuss/stream",
+                        {"topic": topic, "history": history, "message": user_input},
+                    )
+                )
+
+            st.session_state["discuss_history"] = history + [
+                {"role": "user", "content": user_input},
+                {"role": "assistant", "content": response_text},
+            ]
+            st.session_state["write_messages"].append({"role": "user", "content": user_input})
+            st.session_state["write_messages"].append({"role": "assistant", "content": response_text})
+            st.rerun()
+
     # ── drafting: 퇴고 ────────────────────────────────────────────────────────
     elif phase == "drafting":
         col_draft, col_actions = st.columns([3, 1])
 
         with col_draft:
+            # key만 사용 — session_state로 직접 관리
+            if "draft_edit" not in st.session_state:
+                st.session_state["draft_edit"] = st.session_state.get("write_draft", "")
             current_draft = st.text_area(
                 "초안 (직접 편집 가능)",
-                value=st.session_state.get("write_draft", ""),
-                height=400,
+                height=420,
                 key="draft_edit",
             )
 
@@ -202,7 +298,7 @@ with tab_write:
                         json={
                             "topic": st.session_state.get("write_topic", ""),
                             "draft": current_draft,
-                            "related_contents": [],
+                            "related_contents": st.session_state.get("related_contents", []),
                         },
                     )
                 if res.status_code == 200:
@@ -246,7 +342,10 @@ with tab_write:
                         }
                     )
                     st.session_state["write_phase"] = "done"
-                    for key in ("write_draft", "write_history", "judge_result", "draft_edit", "write_tags"):
+                    for key in (
+                        "write_draft", "write_history", "judge_result",
+                        "draft_edit", "write_tags",
+                    ):
                         st.session_state.pop(key, None)
                     st.rerun()
                 else:
@@ -260,10 +359,10 @@ with tab_write:
             key="feedback_input",
         )
         if st.button("퇴고 요청", disabled=not feedback.strip()):
-            st.session_state["write_draft"] = current_draft
             history = st.session_state.get("write_history", [])
-            st.session_state["write_messages"].append({"role": "user", "content": feedback})
 
+            with st.chat_message("user"):
+                st.markdown(feedback)
             with st.chat_message("assistant"):
                 revised_text = st.write_stream(
                     _iter_stream(
@@ -278,8 +377,9 @@ with tab_write:
                 {"role": "user", "content": feedback},
                 {"role": "assistant", "content": revised_text},
             ]
+            st.session_state["write_messages"].append({"role": "user", "content": feedback})
             st.session_state["write_messages"].append(
-                {"role": "assistant", "content": "퇴고 완료! 위 초안이 업데이트됐어요."}
+                {"role": "assistant", "content": "퇴고 완료! 초안이 업데이트됐어요."}
             )
             st.rerun()
 
@@ -289,9 +389,12 @@ with tab_write:
         if st.button("새 글 쓰기"):
             clear_keys = [
                 k for k in st.session_state
-                if k.startswith("write_")
-                or k in ("judge_result", "draft_edit", "write_tags",
-                         "topic_select_input", "feedback_input", "start_query")
+                if k.startswith("write_") or k.startswith("discuss_")
+                or k in (
+                    "judge_result", "draft_edit", "write_tags",
+                    "topic_select_input", "feedback_input", "start_query",
+                    "related_contents",
+                )
             ]
             for k in clear_keys:
                 st.session_state.pop(k, None)
@@ -330,8 +433,12 @@ with tab_distribute:
             brunch = result["brunch"]
             thread = result["thread"]
 
+            st.divider()
+            st.subheader("2. 플랫폼별 발행")
+
             tab_ig, tab_brunch, tab_thread = st.tabs(["인스타그램", "브런치", "스레드"])
 
+            # ── Instagram ──────────────────────────────────────────────────────
             with tab_ig:
                 caption_text = st.text_area(
                     "캡션 (수정 가능)", value=ig["caption"], height=150, key="caption"
@@ -341,42 +448,80 @@ with tab_distribute:
                     value=", ".join(ig["hashtags"]),
                     key="hashtags",
                 )
-
-            with tab_brunch:
-                st.subheader(brunch["title"])
-                st.markdown(brunch["body"])
-
-            with tab_thread:
-                for i, post in enumerate(thread["posts"], 1):
-                    st.markdown(f"**{i}번**")
-                    st.info(post)
-
-            st.divider()
-            st.subheader("2. 인스타그램 발행")
-            st.caption("Instagram Graph API는 이미지가 필수입니다.")
-
-            image_url = st.text_input(
-                "이미지 URL", placeholder="https://example.com/image.jpg"
-            )
-
-            if st.button("발행하기", type="primary", disabled=not image_url.strip()):
-                hashtags = [t.strip().lstrip("#") for t in hashtag_text.split(",") if t.strip()]
-                with st.spinner("인스타그램에 발행 중..."):
-                    pub_res = requests.post(
-                        f"{API_BASE}/distribute/publish/instagram",
-                        json={
-                            "content_id": content_id,
-                            "caption": caption_text,
-                            "hashtags": hashtags,
-                            "image_url": image_url,
-                        },
-                    )
-                if pub_res.status_code == 200:
-                    data = pub_res.json()
-                    if data["status"] == "published":
-                        st.success("발행 완료!")
-                        st.markdown(f"[게시물 보기]({data['published_url']})")
+                st.caption("Instagram Graph API는 이미지가 필수입니다.")
+                image_url = st.text_input(
+                    "이미지 URL", placeholder="https://example.com/image.jpg", key="ig_image_url"
+                )
+                if st.button("인스타그램 발행", type="primary", disabled=not image_url.strip()):
+                    hashtags = [t.strip().lstrip("#") for t in hashtag_text.split(",") if t.strip()]
+                    with st.spinner("인스타그램에 발행 중..."):
+                        pub_res = requests.post(
+                            f"{API_BASE}/distribute/publish/instagram",
+                            json={
+                                "content_id": content_id,
+                                "caption": caption_text,
+                                "hashtags": hashtags,
+                                "image_url": image_url,
+                            },
+                        )
+                    if pub_res.status_code == 200:
+                        data = pub_res.json()
+                        if data["status"] == "published":
+                            st.success("발행 완료!")
+                            st.markdown(f"[게시물 보기]({data['published_url']})")
+                        else:
+                            st.warning(f"저장 완료 (발행 미완료) — status: {data['status']}")
                     else:
-                        st.warning(f"저장 완료 (발행 미완료) — status: {data['status']}")
-                else:
-                    st.error(f"발행 실패: {pub_res.status_code} — {pub_res.text}")
+                        st.error(f"발행 실패: {pub_res.status_code} — {pub_res.text}")
+
+            # ── Brunch ────────────────────────────────────────────────────────
+            with tab_brunch:
+                brunch_title = st.text_input(
+                    "제목 (수정 가능)", value=brunch["title"], key="brunch_title"
+                )
+                brunch_body = st.text_area(
+                    "본문 (수정 가능)", value=brunch["body"], height=300, key="brunch_body"
+                )
+                if st.button("브런치 저장", type="primary", key="brunch_save"):
+                    with st.spinner("저장 중..."):
+                        pub_res = requests.post(
+                            f"{API_BASE}/distribute/publish/brunch",
+                            json={
+                                "content_id": content_id,
+                                "title": brunch_title,
+                                "body": brunch_body,
+                            },
+                        )
+                    if pub_res.status_code == 200:
+                        st.success("브런치 변환 결과 저장 완료!")
+                        st.caption("브런치에 직접 업로드하려면 위 본문을 복사해서 붙여넣으세요.")
+                    else:
+                        st.error(f"저장 실패: {pub_res.status_code}")
+
+            # ── Thread ────────────────────────────────────────────────────────
+            with tab_thread:
+                posts = thread["posts"]
+                edited_posts = []
+                for i, post in enumerate(posts, 1):
+                    edited = st.text_area(
+                        f"{i}번 포스트",
+                        value=post,
+                        height=120,
+                        key=f"thread_post_{i}",
+                    )
+                    edited_posts.append(edited)
+
+                if st.button("스레드 저장", type="primary", key="thread_save"):
+                    with st.spinner("저장 중..."):
+                        pub_res = requests.post(
+                            f"{API_BASE}/distribute/publish/thread",
+                            json={
+                                "content_id": content_id,
+                                "posts": edited_posts,
+                            },
+                        )
+                    if pub_res.status_code == 200:
+                        st.success("스레드 변환 결과 저장 완료!")
+                        st.caption("스레드에 직접 게시하려면 각 포스트를 복사해서 붙여넣으세요.")
+                    else:
+                        st.error(f"저장 실패: {pub_res.status_code}")

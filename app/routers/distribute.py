@@ -28,6 +28,17 @@ class PublishRequest(BaseModel):
     image_url: str
 
 
+class BrunchPublishRequest(BaseModel):
+    content_id: str
+    title: str
+    body: str
+
+
+class ThreadPublishRequest(BaseModel):
+    content_id: str
+    posts: list[str]
+
+
 class PublishResponse(BaseModel):
     publication_id: str
     status: str
@@ -43,6 +54,30 @@ async def convert(req: ConvertRequest):
 
     result = await distribute_content(original=content["text"])
     return ConvertResponse(content_id=req.content_id, **result)
+
+
+@router.post("/publish/brunch", response_model=PublishResponse)
+async def publish_brunch(req: BrunchPublishRequest):
+    """브런치 변환 결과 DB 저장"""
+    pub = save_publication(
+        content_id=req.content_id,
+        platform="brunch",
+        text=f"# {req.title}\n\n{req.body}",
+        status="converted",
+    )
+    return PublishResponse(publication_id=pub["id"], status="converted", published_url=None)
+
+
+@router.post("/publish/thread", response_model=PublishResponse)
+async def publish_thread(req: ThreadPublishRequest):
+    """스레드 변환 결과 DB 저장"""
+    pub = save_publication(
+        content_id=req.content_id,
+        platform="thread",
+        text="\n---\n".join(req.posts),
+        status="converted",
+    )
+    return PublishResponse(publication_id=pub["id"], status="converted", published_url=None)
 
 
 @router.post("/publish/instagram", response_model=PublishResponse)

@@ -15,9 +15,9 @@ export interface RawContent {
 
 export interface ConvertResult {
   content_id: string;
-  instagram: { body: string; hashtags: string[] };
-  brunch: { body: string };
-  thread: { body: string[] };
+  instagram: { caption: string; hashtags: string[] };
+  brunch: { title: string; body: string };
+  thread: { posts: string[] };
 }
 
 export interface JudgeResult {

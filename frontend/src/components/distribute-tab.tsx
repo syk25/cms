@@ -70,7 +70,7 @@ export default function DistributeTab({ contentId }: Props) {
     try {
       await api.publishInstagram(
         contentId!,
-        result.instagram.body,
+        result.instagram.caption,
         result.instagram.hashtags,
         imageUrl
       );
@@ -84,10 +84,7 @@ export default function DistributeTab({ contentId }: Props) {
     if (!result) return;
     setPublishing("brunch");
     try {
-      const lines = result.brunch.body.split("\n");
-      const title = lines[0].replace(/^#+\s*/, "") || "제목 없음";
-      const body = lines.slice(1).join("\n").trim();
-      await api.publishBrunch(contentId!, title, body);
+      await api.publishBrunch(contentId!, result.brunch.title, result.brunch.body);
       setSaved(prev => new Set([...prev, "brunch"]));
     } finally {
       setPublishing(null);
@@ -98,10 +95,7 @@ export default function DistributeTab({ contentId }: Props) {
     if (!result) return;
     setPublishing("thread");
     try {
-      const posts = Array.isArray(result.thread.body)
-        ? result.thread.body
-        : [result.thread.body];
-      await api.publishThread(contentId!, posts);
+      await api.publishThread(contentId!, result.thread.posts);
       setSaved(prev => new Set([...prev, "thread"]));
     } finally {
       setPublishing(null);
@@ -167,9 +161,7 @@ export default function DistributeTab({ contentId }: Props) {
   }
 
   // ── 변환 결과 화면 ────────────────────────────────────────────
-  const threadPosts = Array.isArray(result.thread.body)
-    ? result.thread.body
-    : [result.thread.body];
+  const threadPosts = result.thread.posts ?? [];
 
   return (
     <div className="space-y-4 max-w-3xl mx-auto">
@@ -202,7 +194,7 @@ export default function DistributeTab({ contentId }: Props) {
           </CardHeader>
           <CardContent className="space-y-3">
             <p className="text-sm whitespace-pre-wrap leading-relaxed">
-              {result.instagram.body}
+              {result.instagram.caption}
             </p>
             {result.instagram.hashtags.length > 0 && (
               <div className="flex gap-1.5 flex-wrap">
@@ -244,6 +236,9 @@ export default function DistributeTab({ contentId }: Props) {
             </CardTitle>
           </CardHeader>
           <CardContent>
+            {result.brunch.title && (
+              <p className="text-sm font-medium mb-2">{result.brunch.title}</p>
+            )}
             <p className="text-sm whitespace-pre-wrap leading-relaxed line-clamp-8">
               {result.brunch.body}
             </p>

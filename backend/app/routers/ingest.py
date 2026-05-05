@@ -2,7 +2,7 @@ import json
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from app.agents.notion_import import run_notion_import, stream_notion_import
-from app.db.raw_contents_repo import get_all_raw_contents, count_raw_contents
+from app.db.raw_contents_repo import get_all_raw_contents, count_raw_contents, truncate_raw_contents
 
 router = APIRouter(prefix="/ingest", tags=["ingest"])
 
@@ -36,6 +36,12 @@ def ingest_notion() -> dict:
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/contents")
+def clear_contents() -> dict:
+    truncate_raw_contents()
+    return {"status": "cleared"}
 
 
 @router.get("/contents")

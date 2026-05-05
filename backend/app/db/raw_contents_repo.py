@@ -52,3 +52,17 @@ def get_all_raw_contents(limit: int = 100) -> list[dict]:
         .execute()
     )
     return result.data
+
+
+def truncate_raw_contents() -> None:
+    db = get_supabase()
+    db.table("content_sources").delete().neq("raw_content_id", "00000000-0000-0000-0000-000000000000").execute()
+    db.table("notion_sources").delete().neq("raw_content_id", "00000000-0000-0000-0000-000000000000").execute()
+    db.table("raw_contents").delete().neq("id", "00000000-0000-0000-0000-000000000000").execute()
+
+
+def mark_as_used(ids: list[str]) -> None:
+    if not ids:
+        return
+    db = get_supabase()
+    db.table("raw_contents").update({"is_used": True}).in_("id", ids).execute()

@@ -4,6 +4,7 @@ import anthropic
 from anthropic import AsyncAnthropic
 from app.config import settings
 from app.db.contents_repo import save_content, update_embedding_id, link_raw_contents
+from app.db.raw_contents_repo import mark_as_used
 from app.services.embedding import embed_content
 
 client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
@@ -81,6 +82,7 @@ async def finalize_content(
     row = save_content(text=text, tags=tags)
     content_id = row["id"]
     link_raw_contents(content_id, raw_content_ids)
+    mark_as_used(raw_content_ids)
     embedding_id = embed_content(
         content_id=content_id, text=text, topic=topic, tags=tags
     )

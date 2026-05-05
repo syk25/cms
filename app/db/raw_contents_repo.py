@@ -6,10 +6,12 @@ def save_raw_content(
     source: str,
     category_id: str | None,
     tags: list[str],
+    title: str | None = None,
     embedding_id: str | None = None,
 ) -> dict:
     db = get_supabase()
     row = {
+        "title": title or None,
         "text": text,
         "source": source,
         "category_id": category_id,

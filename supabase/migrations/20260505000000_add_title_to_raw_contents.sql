@@ -1,0 +1,1 @@
+ALTER TABLE raw_contents ADD COLUMN IF NOT EXISTS title TEXT;

@@ -12,6 +12,15 @@ from app.agents.classify_agent import suggest_categories, classify_content
 from app.db.categories_repo import get_all_categories, save_categories, is_empty
 
 
+def _extract_title(page: dict) -> str:
+    """Notion 페이지 properties에서 제목 추출."""
+    for prop in page.get("properties", {}).values():
+        if prop.get("type") == "title":
+            parts = prop.get("title", [])
+            return parts[0]["plain_text"] if parts else ""
+    return ""
+
+
 def run_notion_import() -> dict:
     """Notion DB에서 글감을 가져와 분류 후 Supabase에 저장."""
     last_imported_at = get_last_imported_at()
@@ -20,11 +29,14 @@ def run_notion_import() -> dict:
     if not pages:
         return {"fetched": 0, "imported": 0, "skipped": 0, "items": []}
 
+    # 본문 캐싱 (extract_page_text 중복 호출 방지)
+    page_bodies: dict[str, str] = {}
     texts = []
     for page in pages:
-        text = extract_page_text(page["id"])
-        if text.strip():
-            texts.append(text)
+        body = extract_page_text(page["id"])
+        page_bodies[page["id"]] = body
+        if body.strip():
+            texts.append(body)
 
     if is_empty() and texts:
         suggested = suggest_categories(texts)
@@ -36,11 +48,13 @@ def run_notion_import() -> dict:
     imported = 0
     skipped = 0
     for page in pages:
-        text = extract_page_text(page["id"])
-        if not text.strip():
+        title = _extract_title(page)
+        body = page_bodies[page["id"]]
+
+        if not title.strip() and not body.strip():
             continue
 
-        classified = classify_content(text, categories)
+        classified = classify_content(body or title, categories)
         category_id = (
             get_category_id_by_name(classified["category"])
             if classified["category"]
@@ -53,7 +67,8 @@ def run_notion_import() -> dict:
             results.append(existing)
         else:
             saved = save_raw_content(
-                text=text,
+                title=title.strip() or None,
+                text=body.strip(),
                 source="notion",
                 category_id=category_id,
                 tags=classified["tags"],

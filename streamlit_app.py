@@ -37,6 +37,39 @@ st.markdown("""
 
   /* 구분선 */
   .divider { border: none; border-top: 1px solid #1e293b; margin: 40px 0; }
+
+  /* 글감 카드 */
+  .content-card {
+    background: #141414;
+    border: 1px solid #242424;
+    border-radius: 10px;
+    padding: 14px 16px;
+    margin-bottom: 8px;
+    transition: border-color 0.15s;
+  }
+  .content-card:hover { border-color: #3a3a3a; }
+  .card-meta {
+    display: flex; align-items: center; gap: 6px;
+    flex-wrap: wrap; margin-bottom: 8px;
+  }
+  .source-badge {
+    font-size: 0.68rem; font-weight: 700; letter-spacing: 0.6px;
+    text-transform: uppercase; padding: 2px 7px; border-radius: 4px;
+  }
+  .src-notion { background: #2d1f63; color: #a78bfa; }
+  .src-manual { background: #0f2d1f; color: #4ade80; }
+  .tag-chip {
+    font-size: 0.70rem; background: #1e293b; color: #64748b;
+    border: 1px solid #2d3748; border-radius: 4px; padding: 1px 7px;
+  }
+  .card-title {
+    font-size: 0.90rem; font-weight: 600; color: #e2e8f0;
+    margin: 0 0 4px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .card-title-empty { color: #475569; font-style: italic; }
+  .card-body {
+    font-size: 0.80rem; color: #64748b; line-height: 1.6; margin: 0;
+  }
 </style>
 """, unsafe_allow_html=True)
 
@@ -260,7 +293,7 @@ else:
         # ── 글감 목록 ─────────────────────────────────────────────────────────────
         st.subheader("글감 목록")
         limit = st.slider("최대 표시 개수", 10, 200, 50, key="ingest_limit")
-        if st.button("목록 새로고침"):
+        if st.button("글감 목록 조회"):
             with st.spinner("글감 목록 조회 중..."):
                 res = requests.get(f"{API_BASE}/ingest/contents", params={"limit": limit})
             if res.status_code == 200:
@@ -271,16 +304,33 @@ else:
         if "ingest_items" in st.session_state:
             data = st.session_state["ingest_items"]
             st.caption(f"총 {data['total']}개")
-            rows = [
-                {
-                    "소스": item.get("source", "-"),
-                    "태그": ", ".join(item.get("tags", []) or []),
-                    "글감": (item["text"] or "")[:120]
-                    + ("..." if len(item.get("text", "")) > 120 else ""),
-                }
-                for item in data["items"]
-            ]
-            st.dataframe(rows, use_container_width=True)
+            for item in data["items"]:
+                source = item.get("source") or "manual"
+                tags = item.get("tags") or []
+                title = (item.get("title") or "").strip()
+                body = (item.get("text") or "").strip()
+
+                src_class = "src-notion" if source == "notion" else "src-manual"
+                tag_html = "".join(f'<span class="tag-chip">{t}</span>' for t in tags)
+
+                title_html = (
+                    f'<p class="card-title">{title}</p>'
+                    if title else
+                    '<p class="card-title card-title-empty">(제목없음)</p>'
+                )
+                body_preview = (body[:100] + "…") if len(body) > 100 else body
+                body_html = f'<p class="card-body">{body_preview}</p>' if body_preview else ""
+
+                st.markdown(f"""
+                <div class="content-card">
+                  <div class="card-meta">
+                    <span class="source-badge {src_class}">{source}</span>
+                    {tag_html}
+                  </div>
+                  {title_html}
+                  {body_html}
+                </div>
+                """, unsafe_allow_html=True)
 
 
     # ── Tab 2: Write ──────────────────────────────────────────────────────────────

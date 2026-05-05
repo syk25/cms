@@ -36,21 +36,36 @@ def get_category_id_by_name(category_name: str) -> str | None:
     return None
 
 
-def count_raw_contents() -> int:
+def count_raw_contents(keyword: str = "", is_used: bool | None = None) -> int:
     db = get_supabase()
-    result = db.table("raw_contents").select("id", count="exact").execute()
+    query = db.table("raw_contents").select("id", count="exact")
+    if keyword:
+        query = query.or_(f"title.ilike.%{keyword}%,text.ilike.%{keyword}%")
+    if is_used is not None:
+        query = query.eq("is_used", is_used)
+    result = query.execute()
     return result.count or 0
 
 
-def get_all_raw_contents(limit: int = 100) -> list[dict]:
+def get_all_raw_contents(
+    limit: int = 20,
+    offset: int = 0,
+    keyword: str = "",
+    is_used: bool | None = None,
+) -> list[dict]:
     db = get_supabase()
-    result = (
+    query = (
         db.table("raw_contents")
         .select("*")
         .order("created_at", desc=True)
         .limit(limit)
-        .execute()
+        .offset(offset)
     )
+    if keyword:
+        query = query.or_(f"title.ilike.%{keyword}%,text.ilike.%{keyword}%")
+    if is_used is not None:
+        query = query.eq("is_used", is_used)
+    result = query.execute()
     return result.data
 
 

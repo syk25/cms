@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import * as api from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,21 +14,27 @@ interface Props {
 
 const PAGE_SIZE = 20;
 
+type UsedFilter = "all" | "used" | "unused";
+
 export default function IngestTab({ onGoToWrite }: Props) {
   const [items, setItems] = useState<api.RawContent[]>([]);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [syncEvent, setSyncEvent] = useState<api.SyncEvent | null>(null);
   const [keyword, setKeyword] = useState("");
-  const [usedFilter, setUsedFilter] = useState<"all" | "unused" | "used">("all");
+  const [pendingKeyword, setPendingKeyword] = useState("");
+  const [usedFilter, setUsedFilter] = useState<UsedFilter>("all");
   const [page, setPage] = useState(0);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const syncCtrlRef = useRef<AbortController | null>(null);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (pg: number, kw: string, uf: UsedFilter) => {
     setLoading(true);
     try {
-      const data = await api.getContents();
+      const data = await api.getContents(PAGE_SIZE, pg * PAGE_SIZE, kw, uf);
       setItems(data.items);
+      setTotal(data.total);
     } catch (e) {
       console.error(e);
     } finally {
@@ -36,17 +42,30 @@ export default function IngestTab({ onGoToWrite }: Props) {
     }
   }, []);
 
-  useEffect(() => { load(); }, [load]);
-  useEffect(() => { setPage(0); }, [keyword, usedFilter]);
+  useEffect(() => {
+    load(page, keyword, usedFilter);
+  }, [load, page, keyword, usedFilter]);
+
+  function handleSearch() {
+    setKeyword(pendingKeyword);
+    setPage(0);
+  }
+
+  function handleUsedFilter(uf: UsedFilter) {
+    setUsedFilter(uf);
+    setPage(0);
+  }
 
   function handleSync() {
+    syncCtrlRef.current?.abort();
     setSyncing(true);
     setSyncEvent(null);
-    api.syncNotion((e) => {
+    syncCtrlRef.current = api.syncNotion((e) => {
       setSyncEvent(e);
       if (e.type === "done" || e.type === "error") {
         setSyncing(false);
-        load();
+        load(0, keyword, usedFilter);
+        setPage(0);
       }
     });
   }
@@ -55,6 +74,7 @@ export default function IngestTab({ onGoToWrite }: Props) {
     if (!confirm("모든 글감을 삭제하시겠습니까? 되돌릴 수 없습니다.")) return;
     await api.clearContents();
     setItems([]);
+    setTotal(0);
     setSelected(new Set());
     setSyncEvent(null);
   }
@@ -68,19 +88,7 @@ export default function IngestTab({ onGoToWrite }: Props) {
     });
   }
 
-  const filtered = items.filter(item => {
-    const kw = keyword.toLowerCase();
-    const matchKw = !kw ||
-      item.title?.toLowerCase().includes(kw) ||
-      item.text?.toLowerCase().includes(kw);
-    const matchUsed =
-      usedFilter === "all" ? true :
-      usedFilter === "used" ? item.is_used : !item.is_used;
-    return matchKw && matchUsed;
-  });
-
-  const pageCount = Math.ceil(filtered.length / PAGE_SIZE);
-  const paginated = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+  const pageCount = Math.ceil(total / PAGE_SIZE);
 
   const syncProgress =
     syncEvent?.type === "progress"
@@ -97,7 +105,7 @@ export default function IngestTab({ onGoToWrite }: Props) {
 
   return (
     <div className="space-y-4">
-      {/* Header actions */}
+      {/* Header */}
       <div className="flex items-center gap-2 flex-wrap">
         <Button onClick={handleSync} disabled={syncing} size="sm">
           {syncing ? (
@@ -108,20 +116,18 @@ export default function IngestTab({ onGoToWrite }: Props) {
               </svg>
               동기화 중...
             </span>
-          ) : (
-            "Notion 동기화"
-          )}
+          ) : "Notion 동기화"}
         </Button>
         <Button
           variant="destructive"
           size="sm"
           onClick={handleClear}
-          disabled={syncing || loading || items.length === 0}
+          disabled={syncing || loading || total === 0}
         >
           초기화
         </Button>
         <span className="ml-auto text-sm text-muted-foreground">
-          총 {items.length}개
+          총 {total}개
         </span>
       </div>
 
@@ -135,17 +141,22 @@ export default function IngestTab({ onGoToWrite }: Props) {
 
       {/* Filters */}
       <div className="flex gap-2 flex-wrap">
-        <Input
-          placeholder="제목 또는 본문 검색..."
-          value={keyword}
-          onChange={e => setKeyword(e.target.value)}
-          className="max-w-xs"
-        />
+        <div className="flex gap-1.5 flex-1 max-w-xs">
+          <Input
+            placeholder="제목 또는 본문 검색..."
+            value={pendingKeyword}
+            onChange={e => setPendingKeyword(e.target.value)}
+            onKeyDown={e => e.key === "Enter" && handleSearch()}
+          />
+          <Button variant="outline" size="sm" onClick={handleSearch}>
+            검색
+          </Button>
+        </div>
         <div className="flex rounded-lg border border-border overflow-hidden text-sm">
-          {(["all", "unused", "used"] as const).map(v => (
+          {(["all", "unused", "used"] as UsedFilter[]).map(v => (
             <button
               key={v}
-              onClick={() => setUsedFilter(v)}
+              onClick={() => handleUsedFilter(v)}
               className={`px-3 py-1.5 transition-colors ${
                 usedFilter === v
                   ? "bg-primary text-primary-foreground"
@@ -160,18 +171,28 @@ export default function IngestTab({ onGoToWrite }: Props) {
 
       {/* Content grid */}
       {loading ? (
-        <div className="flex items-center justify-center py-20 text-muted-foreground text-sm">
-          불러오는 중...
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="rounded-xl border border-border bg-card p-4 space-y-2 animate-pulse">
+              <div className="h-3.5 bg-muted rounded w-2/3" />
+              <div className="h-2.5 bg-muted rounded w-1/3" />
+              <div className="space-y-1.5 mt-2">
+                <div className="h-2 bg-muted rounded" />
+                <div className="h-2 bg-muted rounded w-5/6" />
+                <div className="h-2 bg-muted rounded w-4/6" />
+              </div>
+            </div>
+          ))}
         </div>
-      ) : paginated.length === 0 ? (
+      ) : items.length === 0 ? (
         <div className="text-center py-20 text-muted-foreground text-sm">
-          {items.length === 0
+          {total === 0 && !keyword && usedFilter === "all"
             ? "Notion 동기화 버튼으로 글감을 가져오세요."
             : "검색 결과가 없습니다."}
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {paginated.map(item => (
+          {items.map(item => (
             <ContentCard
               key={item.id}
               item={item}
@@ -189,7 +210,7 @@ export default function IngestTab({ onGoToWrite }: Props) {
             variant="outline"
             size="sm"
             onClick={() => setPage(p => Math.max(0, p - 1))}
-            disabled={page === 0}
+            disabled={page === 0 || loading}
           >
             이전
           </Button>
@@ -200,7 +221,7 @@ export default function IngestTab({ onGoToWrite }: Props) {
             variant="outline"
             size="sm"
             onClick={() => setPage(p => Math.min(pageCount - 1, p + 1))}
-            disabled={page >= pageCount - 1}
+            disabled={page >= pageCount - 1 || loading}
           >
             다음
           </Button>

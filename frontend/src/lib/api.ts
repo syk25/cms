@@ -49,8 +49,20 @@ async function post<T>(path: string, body?: object): Promise<T> {
   return res.json();
 }
 
-export async function getContents(limit = 300) {
-  const res = await fetch(`${API}/ingest/contents?limit=${limit}`);
+export async function getContents(
+  limit = 20,
+  offset = 0,
+  keyword = "",
+  isUsed: "all" | "used" | "unused" = "all"
+) {
+  const params = new URLSearchParams({
+    limit: String(limit),
+    offset: String(offset),
+  });
+  if (keyword) params.set("search", keyword);
+  if (isUsed === "used") params.set("is_used", "true");
+  if (isUsed === "unused") params.set("is_used", "false");
+  const res = await fetch(`${API}/ingest/contents?${params}`);
   if (!res.ok) throw new Error(`${res.status}`);
   return res.json() as Promise<{ total: number; items: RawContent[] }>;
 }

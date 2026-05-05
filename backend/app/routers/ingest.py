@@ -45,6 +45,17 @@ def clear_contents() -> dict:
 
 
 @router.get("/contents")
-def list_contents(limit: int = 100) -> dict:
-    results = get_all_raw_contents(limit=limit)
-    return {"total": len(results), "items": results}
+def list_contents(
+    limit: int = 20,
+    offset: int = 0,
+    search: str = "",
+    is_used: str = "",
+) -> dict:
+    is_used_bool: bool | None = None
+    if is_used == "true":
+        is_used_bool = True
+    elif is_used == "false":
+        is_used_bool = False
+    total = count_raw_contents(keyword=search, is_used=is_used_bool)
+    results = get_all_raw_contents(limit=limit, offset=offset, keyword=search, is_used=is_used_bool)
+    return {"total": total, "items": results}

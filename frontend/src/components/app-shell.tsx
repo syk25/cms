@@ -68,14 +68,18 @@ export default function AppShell() {
       </nav>
 
       <main className="flex-1 p-6 overflow-auto">
-        {tab === "글감" && <IngestTab onGoToWrite={handleGoToWrite} />}
-        {tab === "글쓰기" && (
+        <div className={tab !== "글감" ? "hidden" : ""}>
+          <IngestTab onGoToWrite={handleGoToWrite} />
+        </div>
+        <div className={tab !== "글쓰기" ? "hidden" : ""}>
           <CowriteTab
             initialSelectedContents={selectedContents}
             onFinalize={handleFinalize}
           />
-        )}
-        {tab === "발행" && <DistributeTab contentId={contentId} />}
+        </div>
+        <div className={tab !== "발행" ? "hidden" : ""}>
+          <DistributeTab contentId={contentId} />
+        </div>
       </main>
     </div>
   );

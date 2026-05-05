@@ -30,6 +30,7 @@ export default function DistributeTab({ contentId }: Props) {
   const [generatingImage, setGeneratingImage] = useState(false);
   const [publishing, setPublishing] = useState<Platform | null>(null);
   const [saved, setSaved] = useState<Set<Platform>>(new Set());
+  const [publishedUrls, setPublishedUrls] = useState<Record<string, string | null>>({});
 
   if (!contentId) {
     return (
@@ -66,6 +67,7 @@ export default function DistributeTab({ contentId }: Props) {
   function handleReset() {
     setResult(null);
     setSaved(new Set());
+    setPublishedUrls({});
     setImageUrl("");
     setImagePrompt("");
   }
@@ -89,13 +91,14 @@ export default function DistributeTab({ contentId }: Props) {
     if (!result) return;
     setPublishing("instagram");
     try {
-      await api.publishInstagram(
+      const res = await api.publishInstagram(
         contentId!,
         result.instagram.caption,
         result.instagram.hashtags.map(cleanTag),
         imageUrl
-      );
+      ) as { published_url?: string | null };
       setSaved(prev => new Set([...prev, "instagram"]));
+      setPublishedUrls(prev => ({ ...prev, instagram: res.published_url ?? null }));
     } finally {
       setPublishing(null);
     }
@@ -105,8 +108,9 @@ export default function DistributeTab({ contentId }: Props) {
     if (!result) return;
     setPublishing("brunch");
     try {
-      await api.publishBrunch(contentId!, result.brunch.title, result.brunch.body);
+      const res = await api.publishBrunch(contentId!, result.brunch.title, result.brunch.body) as { published_url?: string | null };
       setSaved(prev => new Set([...prev, "brunch"]));
+      setPublishedUrls(prev => ({ ...prev, brunch: res.published_url ?? null }));
     } finally {
       setPublishing(null);
     }
@@ -116,8 +120,9 @@ export default function DistributeTab({ contentId }: Props) {
     if (!result) return;
     setPublishing("thread");
     try {
-      await api.publishThread(contentId!, result.thread.posts);
+      const res = await api.publishThread(contentId!, result.thread.posts) as { published_url?: string | null };
       setSaved(prev => new Set([...prev, "thread"]));
+      setPublishedUrls(prev => ({ ...prev, thread: res.published_url ?? null }));
     } finally {
       setPublishing(null);
     }
@@ -199,9 +204,21 @@ export default function DistributeTab({ contentId }: Props) {
             <CardTitle className="flex items-center justify-between text-sm">
               <span>Instagram</span>
               {saved.has("instagram") ? (
-                <Badge className="text-xs bg-emerald-500/20 text-emerald-400 border-emerald-500/30">
-                  발행됨
-                </Badge>
+                <div className="flex items-center gap-2">
+                  <Badge className="text-xs bg-emerald-500/20 text-emerald-400 border-emerald-500/30">
+                    발행됨
+                  </Badge>
+                  {publishedUrls.instagram && (
+                    <a
+                      href={publishedUrls.instagram}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-primary underline underline-offset-2"
+                    >
+                      게시물 보기 →
+                    </a>
+                  )}
+                </div>
               ) : (
                 <Button
                   size="sm"
@@ -287,9 +304,17 @@ export default function DistributeTab({ contentId }: Props) {
             <CardTitle className="flex items-center justify-between text-sm">
               <span>브런치</span>
               {saved.has("brunch") ? (
-                <Badge className="text-xs bg-emerald-500/20 text-emerald-400 border-emerald-500/30">
-                  저장됨
-                </Badge>
+                <div className="flex items-center gap-2">
+                  <Badge className="text-xs bg-emerald-500/20 text-emerald-400 border-emerald-500/30">
+                    저장됨
+                  </Badge>
+                  {publishedUrls.brunch && (
+                    <a href={publishedUrls.brunch} target="_blank" rel="noopener noreferrer"
+                      className="text-xs text-primary underline underline-offset-2">
+                      게시물 보기 →
+                    </a>
+                  )}
+                </div>
               ) : (
                 <Button
                   variant="outline"
@@ -319,9 +344,17 @@ export default function DistributeTab({ contentId }: Props) {
             <CardTitle className="flex items-center justify-between text-sm">
               <span>스레드</span>
               {saved.has("thread") ? (
-                <Badge className="text-xs bg-emerald-500/20 text-emerald-400 border-emerald-500/30">
-                  저장됨
-                </Badge>
+                <div className="flex items-center gap-2">
+                  <Badge className="text-xs bg-emerald-500/20 text-emerald-400 border-emerald-500/30">
+                    저장됨
+                  </Badge>
+                  {publishedUrls.thread && (
+                    <a href={publishedUrls.thread} target="_blank" rel="noopener noreferrer"
+                      className="text-xs text-primary underline underline-offset-2">
+                      게시물 보기 →
+                    </a>
+                  )}
+                </div>
               ) : (
                 <Button
                   variant="outline"

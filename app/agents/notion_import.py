@@ -21,6 +21,72 @@ def _extract_title(page: dict) -> str:
     return ""
 
 
+def stream_notion_import():
+    """Notion import를 실행하며 진행 이벤트를 yield한다."""
+    last_imported_at = get_last_imported_at()
+    pages = fetch_notion_pages(last_imported_at)
+
+    if not pages:
+        yield {"type": "done", "fetched": 0, "imported": 0, "skipped": 0}
+        return
+
+    page_bodies: dict[str, str] = {}
+    texts = []
+    for page in pages:
+        body = extract_page_text(page["id"])
+        page_bodies[page["id"]] = body
+        if body.strip():
+            texts.append(body)
+
+    yield {"type": "pages_fetched", "total": len(pages)}
+
+    if is_empty() and texts:
+        suggested = suggest_categories(texts)
+        save_categories(suggested)
+
+    categories = [c["category_name"] for c in get_all_categories()]
+
+    imported = 0
+    skipped = 0
+
+    for i, page in enumerate(pages):
+        title = _extract_title(page)
+        body = page_bodies[page["id"]]
+
+        if not title.strip() and not body.strip():
+            yield {"type": "progress", "processed": i + 1, "total": len(pages)}
+            continue
+
+        classified = classify_content(body or title, categories)
+        category_id = (
+            get_category_id_by_name(classified["category"])
+            if classified["category"]
+            else None
+        )
+
+        existing = get_notion_source_by_page_id(page["id"])
+        if existing:
+            skipped += 1
+        else:
+            saved = save_raw_content(
+                title=title.strip() or None,
+                text=body.strip(),
+                source="notion",
+                category_id=category_id,
+                tags=classified["tags"],
+            )
+            upsert_notion_source(
+                raw_content_id=saved["id"],
+                notion_page_id=page["id"],
+                notion_url=page["url"],
+            )
+            imported += 1
+
+        yield {"type": "progress", "processed": i + 1, "total": len(pages)}
+
+    yield {"type": "done", "fetched": len(pages), "imported": imported, "skipped": skipped}
+
+
 def run_notion_import() -> dict:
     """Notion DB에서 글감을 가져와 분류 후 Supabase에 저장."""
     last_imported_at = get_last_imported_at()

@@ -1,6 +1,5 @@
 import os
-import time
-import concurrent.futures
+import json
 import requests
 import streamlit as st
 
@@ -241,52 +240,57 @@ else:
 
         if st.button("동기화 시작", type="primary"):
             progress_bar = st.progress(0, text="Notion API 연결 중...")
-            status_text = st.empty()
+            counter_text = st.empty()
+            total_pages = 0
+            total_before = 0
+            sync_result = None
 
-            # 진행 단계 정의 (API 호출과 병렬로 애니메이션)
-            steps = [
-                (15, "Notion API 연결 중..."),
-                (35, "페이지 목록 가져오는 중..."),
-                (55, "글감 분류 중 (AI 처리)..."),
-                (75, "Supabase에 저장 중..."),
-                (90, "마무리 중..."),
-            ]
+            try:
+                with requests.post(
+                    f"{API_BASE}/ingest/notion/stream", stream=True, timeout=600
+                ) as res:
+                    res.raise_for_status()
+                    for raw in res.iter_lines():
+                        if not raw:
+                            continue
+                        event = json.loads(raw)
 
-            with concurrent.futures.ThreadPoolExecutor() as executor:
-                future = executor.submit(
-                    requests.post, f"{API_BASE}/ingest/notion", timeout=300
-                )
+                        if event["type"] == "start":
+                            total_before = event["total_before"]
+                            progress_bar.progress(5, text="Notion 페이지 목록 가져오는 중...")
 
-                step_idx = 0
-                pct = 0
-                while not future.done():
-                    if step_idx < len(steps):
-                        target, label = steps[step_idx]
-                        if pct < target:
-                            pct += 1
-                            progress_bar.progress(pct, text=label)
-                        else:
-                            step_idx += 1
-                    time.sleep(0.08)
+                        elif event["type"] == "pages_fetched":
+                            total_pages = event["total"]
+                            progress_bar.progress(10, text=f"총 {total_pages}개 페이지 확인, 분류 시작...")
+                            counter_text.caption(f"0 / {total_pages} 처리")
 
-                res = future.result()
+                        elif event["type"] == "progress":
+                            processed = event["processed"]
+                            pct = 10 + int(processed / total_pages * 85) if total_pages else 50
+                            progress_bar.progress(pct, text="글감 분류 및 저장 중...")
+                            counter_text.caption(f"{processed} / {total_pages} 처리 완료")
 
-            if res.status_code == 200:
-                progress_bar.progress(100, text="동기화 완료!")
-                time.sleep(0.4)
+                        elif event["type"] == "done":
+                            sync_result = event
+                            progress_bar.progress(100, text="동기화 완료!")
+                            counter_text.empty()
+
+                        elif event["type"] == "error":
+                            progress_bar.empty()
+                            counter_text.empty()
+                            st.error(f"오류: {event['message']}")
+
+            except Exception as e:
                 progress_bar.empty()
-                status_text.empty()
+                counter_text.empty()
+                st.error(f"연결 오류: {e}")
 
-                data = res.json()
+            if sync_result:
                 st.success("동기화 완료")
                 m1, m2, m3 = st.columns(3)
-                m1.metric("기존 글감", f"{data['total_before']}개")
-                m2.metric("새로 추가된 글감", f"{data['imported']}개", delta=f"+{data['imported']}" if data['imported'] else None)
-                m3.metric("Notion에서 가져온 글감", f"{data['fetched']}개")
-            else:
-                progress_bar.empty()
-                status_text.empty()
-                st.error(f"오류: {res.status_code} — {res.text}")
+                m1.metric("기존 글감", f"{total_before}개")
+                m2.metric("새로 추가된 글감", f"{sync_result['imported']}개", delta=f"+{sync_result['imported']}" if sync_result['imported'] else None)
+                m3.metric("Notion에서 가져온 글감", f"{sync_result['fetched']}개")
 
         st.divider()
 

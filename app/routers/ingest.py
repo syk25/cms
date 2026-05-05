@@ -1,8 +1,25 @@
+import json
 from fastapi import APIRouter, HTTPException
-from app.agents.notion_import import run_notion_import
+from fastapi.responses import StreamingResponse
+from app.agents.notion_import import run_notion_import, stream_notion_import
 from app.db.raw_contents_repo import get_all_raw_contents, count_raw_contents
 
 router = APIRouter(prefix="/ingest", tags=["ingest"])
+
+
+@router.post("/notion/stream")
+def ingest_notion_stream():
+    total_before = count_raw_contents()
+
+    def generate():
+        yield json.dumps({"type": "start", "total_before": total_before}) + "\n"
+        try:
+            for event in stream_notion_import():
+                yield json.dumps(event) + "\n"
+        except Exception as e:
+            yield json.dumps({"type": "error", "message": str(e)}) + "\n"
+
+    return StreamingResponse(generate(), media_type="text/plain")
 
 
 @router.post("/notion")

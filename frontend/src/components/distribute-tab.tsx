@@ -24,6 +24,8 @@ export default function DistributeTab({ contentId }: Props) {
   const [converting, setConverting] = useState(false);
   const [result, setResult] = useState<api.ConvertResult | null>(null);
   const [imageUrl, setImageUrl] = useState("");
+  const [imagePrompt, setImagePrompt] = useState("");
+  const [generatingImage, setGeneratingImage] = useState(false);
   const [publishing, setPublishing] = useState<Platform | null>(null);
   const [saved, setSaved] = useState<Set<Platform>>(new Set());
 
@@ -62,6 +64,23 @@ export default function DistributeTab({ contentId }: Props) {
   function handleReset() {
     setResult(null);
     setSaved(new Set());
+    setImageUrl("");
+    setImagePrompt("");
+  }
+
+  async function handleGenerateImage() {
+    if (!result) return;
+    setGeneratingImage(true);
+    try {
+      const res = await api.generateImagePrompt(
+        result.instagram.caption,
+        result.instagram.hashtags
+      );
+      setImagePrompt(res.prompt);
+      setImageUrl(res.image_url);
+    } finally {
+      setGeneratingImage(false);
+    }
   }
 
   async function handlePublishInstagram() {
@@ -204,11 +223,57 @@ export default function DistributeTab({ contentId }: Props) {
               </div>
             )}
             {!saved.has("instagram") && (
-              <Input
-                placeholder="이미지 URL (발행에 필요)"
-                value={imageUrl}
-                onChange={e => setImageUrl(e.target.value)}
-              />
+              <div className="space-y-2">
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="이미지 URL (발행에 필요)"
+                    value={imageUrl}
+                    onChange={e => setImageUrl(e.target.value)}
+                    className="flex-1"
+                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleGenerateImage}
+                    disabled={generatingImage}
+                    className="shrink-0"
+                  >
+                    {generatingImage ? (
+                      <span className="flex items-center gap-1.5">
+                        <svg className="size-3.5 animate-spin" viewBox="0 0 24 24" fill="none">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                        </svg>
+                        생성 중...
+                      </span>
+                    ) : "AI 이미지 생성"}
+                  </Button>
+                </div>
+                {imageUrl && (
+                  <div className="space-y-1.5">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={imageUrl}
+                      alt="생성된 이미지"
+                      className="w-full rounded-lg object-cover aspect-square"
+                      onError={() => setImageUrl("")}
+                    />
+                    {imagePrompt && (
+                      <p className="text-xs text-muted-foreground">
+                        프롬프트: {imagePrompt}
+                      </p>
+                    )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleGenerateImage}
+                      disabled={generatingImage}
+                    >
+                      재생성
+                    </Button>
+                  </div>
+                )}
+              </div>
             )}
           </CardContent>
         </Card>

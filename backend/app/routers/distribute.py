@@ -1,3 +1,6 @@
+import urllib.parse
+
+import anthropic
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
@@ -6,6 +9,8 @@ from app.config import settings
 from app.db.contents_repo import get_content
 from app.db.publications_repo import save_publication, update_publication_status
 from app.services.instagram import publish_photo
+
+_client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
 
 router = APIRouter(prefix="/distribute", tags=["distribute"])
 
@@ -43,6 +48,42 @@ class PublishResponse(BaseModel):
     publication_id: str
     status: str
     published_url: str | None
+
+
+class ImagePromptRequest(BaseModel):
+    caption: str
+    hashtags: list[str]
+
+
+class ImagePromptResponse(BaseModel):
+    prompt: str
+    image_url: str
+
+
+@router.post("/image-prompt", response_model=ImagePromptResponse)
+def generate_image_prompt(req: ImagePromptRequest):
+    """캡션 → 영어 이미지 프롬프트 생성 → Pollinations URL 반환"""
+    response = _client.messages.create(
+        model="claude-haiku-4-5-20251001",
+        max_tokens=120,
+        messages=[{
+            "role": "user",
+            "content": (
+                f"다음 인스타그램 캡션을 바탕으로 이미지 생성에 적합한 영어 프롬프트를 만들어줘.\n\n"
+                f"캡션: {req.caption}\n"
+                f"해시태그: {', '.join(req.hashtags)}\n\n"
+                "규칙:\n"
+                "- 영어로만 작성\n"
+                "- 60단어 이내\n"
+                "- 사진 스타일, 분위기, 색감 포함\n"
+                "- 프롬프트 텍스트만 출력, 다른 설명 없이"
+            ),
+        }],
+    )
+    prompt = response.content[0].text.strip()
+    encoded = urllib.parse.quote(prompt)
+    image_url = f"https://image.pollinations.ai/prompt/{encoded}?width=1080&height=1080&nologo=true"
+    return ImagePromptResponse(prompt=prompt, image_url=image_url)
 
 
 @router.post("/convert", response_model=ConvertResponse)

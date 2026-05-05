@@ -152,6 +152,13 @@ export async function finalizeContent(
   });
 }
 
+export async function generateImagePrompt(caption: string, hashtags: string[]) {
+  return post<{ prompt: string; image_url: string }>("/distribute/image-prompt", {
+    caption,
+    hashtags,
+  });
+}
+
 export async function convertContent(content_id: string) {
   return post<ConvertResult>("/distribute/convert", { content_id });
 }

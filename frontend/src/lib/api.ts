@@ -32,8 +32,8 @@ export interface SyncEvent {
   type: SyncEventType;
   total_before?: number;
   total?: number;
-  current?: number;
-  title?: string;
+  processed?: number;  // progress 이벤트
+  fetched?: number;    // done 이벤트
   imported?: number;
   skipped?: number;
   message?: string;

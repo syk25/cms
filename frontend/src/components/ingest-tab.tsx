@@ -84,14 +84,16 @@ export default function IngestTab({ onGoToWrite }: Props) {
 
   const syncProgress =
     syncEvent?.type === "progress"
-      ? Math.round(((syncEvent.current ?? 0) / (syncEvent.total ?? 1)) * 100)
+      ? Math.round(((syncEvent.processed ?? 0) / (syncEvent.total ?? 1)) * 100)
       : syncEvent?.type === "done" ? 100 : 0;
 
   const syncLabel =
-    syncEvent?.type === "start" ? "연결 중..." :
-    syncEvent?.type === "progress" ? `${syncEvent.current} / ${syncEvent.total} — ${syncEvent.title ?? ""}` :
-    syncEvent?.type === "done" ? `완료 — ${syncEvent.imported}개 추가, ${syncEvent.skipped}개 스킵` :
-    syncEvent?.type === "error" ? `오류: ${syncEvent.message}` : "";
+    !syncEvent ? "Notion에 연결 중..." :
+    syncEvent.type === "start" ? "연결 중..." :
+    syncEvent.type === "pages_fetched" ? `페이지 ${syncEvent.total}개 발견. 분류 중...` :
+    syncEvent.type === "progress" ? `${syncEvent.processed} / ${syncEvent.total} 페이지 처리 중` :
+    syncEvent.type === "done" ? `완료 — ${syncEvent.imported}개 추가, ${syncEvent.skipped}개 스킵` :
+    syncEvent.type === "error" ? `오류: ${syncEvent.message}` : "";
 
   return (
     <div className="space-y-4">

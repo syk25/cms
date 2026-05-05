@@ -112,37 +112,50 @@ flowchart TD
 
 ## 로컬 개발
 
+### Docker Compose (권장)
+
 ```bash
-# 의존성 설치
+# backend/.env 설정 후
+docker compose up --build
+# → API: http://localhost:8000/docs
+# → UI:  http://localhost:3000
+```
+
+### 개별 실행
+
+```bash
+# 백엔드
+cd backend
 uv sync
-
-# 환경변수 설정
-cp .env.example .env
-# .env에 ANTHROPIC_API_KEY, VOYAGE_API_KEY, SUPABASE_URL, SUPABASE_KEY 입력
-
-# FastAPI 서버 실행
+cp .env.example .env   # API 키 입력
 uv run uvicorn app.main:app --reload
 # → http://localhost:8000/docs
 
-# Streamlit UI 실행 (별도 터미널)
-uv run streamlit run streamlit_app.py
-# → http://localhost:8501
+# 프론트엔드 (별도 터미널)
+cd frontend
+npm install
+npm run dev
+# → http://localhost:3000
 ```
+
+자세한 내용은 각 디렉토리의 README를 참고하세요:
+- [backend/README.md](backend/README.md)
+- [frontend/README.md](frontend/README.md)
 
 ---
 
-## 클라우드 배포 (Fly.io)
+## 클라우드 배포
 
 ```bash
-# FastAPI 배포
-fly deploy --config fly.toml
+# 백엔드 (Fly.io)
+cd backend && fly deploy --config fly.toml
+# → https://inkflow-api.fly.dev
 
-# Streamlit 배포
-fly deploy --config fly.streamlit.toml
+# 프론트엔드 (Vercel 등 Next.js 호스팅)
+cd frontend && npm run build
 ```
 
 - API: `https://inkflow-api.fly.dev`
-- UI: `https://inkflow-ui.fly.dev`
 - ChromaDB: Fly.io 퍼시스턴트 볼륨 (`inkflow_chroma_data`, 1 GB) 마운트
 - 리전: 도쿄 (`nrt`)
 

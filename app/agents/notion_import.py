@@ -12,13 +12,13 @@ from app.agents.classify_agent import suggest_categories, classify_content
 from app.db.categories_repo import get_all_categories, save_categories, is_empty
 
 
-def run_notion_import() -> list[dict]:
+def run_notion_import() -> dict:
     """Notion DB에서 글감을 가져와 분류 후 Supabase에 저장."""
     last_imported_at = get_last_imported_at()
     pages = fetch_notion_pages(last_imported_at)
 
     if not pages:
-        return []
+        return {"fetched": 0, "imported": 0, "skipped": 0, "items": []}
 
     texts = []
     for page in pages:
@@ -33,6 +33,8 @@ def run_notion_import() -> list[dict]:
     categories = [c["category_name"] for c in get_all_categories()]
 
     results = []
+    imported = 0
+    skipped = 0
     for page in pages:
         text = extract_page_text(page["id"])
         if not text.strip():
@@ -47,7 +49,7 @@ def run_notion_import() -> list[dict]:
 
         existing = get_notion_source_by_page_id(page["id"])
         if existing:
-            # 이미 있으면 raw_contents 업데이트 (추후 구현)
+            skipped += 1
             results.append(existing)
         else:
             saved = save_raw_content(
@@ -61,6 +63,7 @@ def run_notion_import() -> list[dict]:
                 notion_page_id=page["id"],
                 notion_url=page["url"],
             )
+            imported += 1
             results.append(saved)
 
-    return results
+    return {"fetched": len(pages), "imported": imported, "skipped": skipped, "items": results}

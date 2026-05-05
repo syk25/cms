@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException
 from app.agents.notion_import import run_notion_import
-from app.db.raw_contents_repo import get_all_raw_contents
+from app.db.raw_contents_repo import get_all_raw_contents, count_raw_contents
 
 router = APIRouter(prefix="/ingest", tags=["ingest"])
 
@@ -8,8 +8,15 @@ router = APIRouter(prefix="/ingest", tags=["ingest"])
 @router.post("/notion")
 def ingest_notion() -> dict:
     try:
-        results = run_notion_import()
-        return {"imported": len(results), "items": results}
+        total_before = count_raw_contents()
+        result = run_notion_import()
+        return {
+            "total_before": total_before,
+            "fetched": result["fetched"],
+            "imported": result["imported"],
+            "skipped": result["skipped"],
+            "items": result["items"],
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

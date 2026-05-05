@@ -34,6 +34,12 @@ def get_category_id_by_name(category_name: str) -> str | None:
     return None
 
 
+def count_raw_contents() -> int:
+    db = get_supabase()
+    result = db.table("raw_contents").select("id", count="exact").execute()
+    return result.count or 0
+
+
 def get_all_raw_contents(limit: int = 100) -> list[dict]:
     db = get_supabase()
     result = (

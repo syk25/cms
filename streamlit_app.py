@@ -1,4 +1,6 @@
 import os
+import time
+import concurrent.futures
 import requests
 import streamlit as st
 
@@ -200,44 +202,85 @@ else:
     with tab_ingest:
         st.header("글감 수집")
 
-        col_import, col_list = st.columns([1, 2])
+        # ── Notion 동기화 ────────────────────────────────────────────────────────
+        st.subheader("Notion 동기화")
+        st.caption("Notion DB에서 글감을 증분 import합니다.")
 
-        with col_import:
-            st.subheader("Notion 동기화")
-            st.caption("Notion DB에서 글감을 증분 import합니다.")
-            if st.button("동기화 시작", type="primary"):
-                with st.spinner("Notion에서 글감을 가져오는 중..."):
-                    res = requests.post(f"{API_BASE}/ingest/notion")
-                if res.status_code == 200:
-                    data = res.json()
-                    st.success(f"{data['imported']}개 글감 import 완료")
-                else:
-                    st.error(f"오류: {res.status_code} — {res.text}")
+        if st.button("동기화 시작", type="primary"):
+            progress_bar = st.progress(0, text="Notion API 연결 중...")
+            status_text = st.empty()
 
-        with col_list:
-            st.subheader("글감 목록")
-            limit = st.slider("최대 표시 개수", 10, 200, 50, key="ingest_limit")
-            if st.button("목록 새로고침"):
-                with st.spinner("글감 목록 조회 중..."):
-                    res = requests.get(f"{API_BASE}/ingest/contents", params={"limit": limit})
-                if res.status_code == 200:
-                    st.session_state["ingest_items"] = res.json()
-                else:
-                    st.error(f"오류: {res.status_code}")
+            # 진행 단계 정의 (API 호출과 병렬로 애니메이션)
+            steps = [
+                (15, "Notion API 연결 중..."),
+                (35, "페이지 목록 가져오는 중..."),
+                (55, "글감 분류 중 (AI 처리)..."),
+                (75, "Supabase에 저장 중..."),
+                (90, "마무리 중..."),
+            ]
 
-            if "ingest_items" in st.session_state:
-                data = st.session_state["ingest_items"]
-                st.caption(f"총 {data['total']}개")
-                rows = [
-                    {
-                        "소스": item.get("source", "-"),
-                        "태그": ", ".join(item.get("tags", []) or []),
-                        "글감": (item["text"] or "")[:120]
-                        + ("..." if len(item.get("text", "")) > 120 else ""),
-                    }
-                    for item in data["items"]
-                ]
-                st.dataframe(rows, use_container_width=True)
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(
+                    requests.post, f"{API_BASE}/ingest/notion", timeout=300
+                )
+
+                step_idx = 0
+                pct = 0
+                while not future.done():
+                    if step_idx < len(steps):
+                        target, label = steps[step_idx]
+                        if pct < target:
+                            pct += 1
+                            progress_bar.progress(pct, text=label)
+                        else:
+                            step_idx += 1
+                    time.sleep(0.08)
+
+                res = future.result()
+
+            if res.status_code == 200:
+                progress_bar.progress(100, text="동기화 완료!")
+                time.sleep(0.4)
+                progress_bar.empty()
+                status_text.empty()
+
+                data = res.json()
+                st.success("동기화 완료")
+                m1, m2, m3 = st.columns(3)
+                m1.metric("기존 글감", f"{data['total_before']}개")
+                m2.metric("새로 추가된 글감", f"{data['imported']}개", delta=f"+{data['imported']}" if data['imported'] else None)
+                m3.metric("Notion에서 가져온 글감", f"{data['fetched']}개")
+            else:
+                progress_bar.empty()
+                status_text.empty()
+                st.error(f"오류: {res.status_code} — {res.text}")
+
+        st.divider()
+
+        # ── 글감 목록 ─────────────────────────────────────────────────────────────
+        st.subheader("글감 목록")
+        limit = st.slider("최대 표시 개수", 10, 200, 50, key="ingest_limit")
+        if st.button("목록 새로고침"):
+            with st.spinner("글감 목록 조회 중..."):
+                res = requests.get(f"{API_BASE}/ingest/contents", params={"limit": limit})
+            if res.status_code == 200:
+                st.session_state["ingest_items"] = res.json()
+            else:
+                st.error(f"오류: {res.status_code}")
+
+        if "ingest_items" in st.session_state:
+            data = st.session_state["ingest_items"]
+            st.caption(f"총 {data['total']}개")
+            rows = [
+                {
+                    "소스": item.get("source", "-"),
+                    "태그": ", ".join(item.get("tags", []) or []),
+                    "글감": (item["text"] or "")[:120]
+                    + ("..." if len(item.get("text", "")) > 120 else ""),
+                }
+                for item in data["items"]
+            ]
+            st.dataframe(rows, use_container_width=True)
 
 
     # ── Tab 2: Write ──────────────────────────────────────────────────────────────

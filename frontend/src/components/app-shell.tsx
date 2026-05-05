@@ -4,14 +4,20 @@ import { useState } from "react";
 import IngestTab from "@/components/ingest-tab";
 import CowriteTab from "@/components/cowrite-tab";
 import DistributeTab from "@/components/distribute-tab";
+import LandingPage from "@/components/landing-page";
 
 const TABS = ["글감", "글쓰기", "발행"] as const;
 type Tab = (typeof TABS)[number];
 
 export default function AppShell() {
+  const [page, setPage] = useState<"landing" | "app">("landing");
   const [tab, setTab] = useState<Tab>("글감");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [contentId, setContentId] = useState<string | null>(null);
+
+  if (page === "landing") {
+    return <LandingPage onStart={() => setPage("app")} />;
+  }
 
   function handleGoToWrite(ids: string[]) {
     setSelectedIds(ids);
@@ -27,7 +33,12 @@ export default function AppShell() {
     <div className="flex flex-col min-h-screen">
       {/* Header */}
       <header className="border-b border-border px-6 py-3 flex items-center gap-3 shrink-0">
-        <span className="font-bold text-base tracking-tight">Inkflow</span>
+        <button
+          onClick={() => setPage("landing")}
+          className="font-bold text-base tracking-tight hover:text-primary transition-colors"
+        >
+          Inkflow
+        </button>
         <span className="text-xs text-muted-foreground hidden sm:block">
           AI 콘텐츠 자동화
         </span>

@@ -2,11 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import * as api from "@/lib/api";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent } from "@/components/ui/card";
 
 type Phase =
   | "topic"
@@ -33,7 +31,6 @@ export default function CowriteTab({
   const [phase, setPhase] = useState<Phase>("topic");
   const [topic, setTopic] = useState("");
   const [related, setRelated] = useState<api.RawContent[]>([]);
-  const [searching, setSearching] = useState(false);
 
   // Discuss
   const [discussHistory, setDiscussHistory] = useState<ChatMessage[]>([]);
@@ -58,20 +55,14 @@ export default function CowriteTab({
   const abortRef = useRef<AbortController | null>(null);
   const chatEndRef = useRef<HTMLDivElement | null>(null);
 
+  // 선택된 글감을 related로 세팅
+  useEffect(() => {
+    setRelated(initialSelectedContents);
+  }, [initialSelectedContents]);
+
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [discussHistory, streamText]);
-
-  async function handleSearch() {
-    if (!topic.trim()) return;
-    setSearching(true);
-    try {
-      const res = await api.searchContents(topic);
-      setRelated(res.results);
-    } finally {
-      setSearching(false);
-    }
-  }
 
   async function handleDiscuss() {
     if (!discussInput.trim() || streaming) return;
@@ -211,64 +202,52 @@ export default function CowriteTab({
     }
   }
 
-  // ── Phase: topic ────────────────────────────────────────────
+  // ── Phase: topic ─────────────────────────────────────────────
   if (phase === "topic") {
     return (
       <div className="space-y-5 max-w-2xl mx-auto">
-        <div>
-          <h2 className="font-semibold text-base mb-3">주제 설정</h2>
-          <div className="flex gap-2">
-            <Input
-              placeholder="어떤 주제로 글을 쓸까요?"
-              value={topic}
-              onChange={e => setTopic(e.target.value)}
-              onKeyDown={e => e.key === "Enter" && handleSearch()}
-              className="flex-1"
-            />
-            <Button
-              onClick={handleSearch}
-              disabled={searching || !topic.trim()}
-              variant="outline"
-            >
-              {searching ? "검색 중..." : "글감 검색"}
-            </Button>
-          </div>
-          {initialSelectedContents.length > 0 && (
-            <div className="mt-2 space-y-1.5">
-              <p className="text-xs font-medium text-muted-foreground">
-                선택한 글감 {initialSelectedContents.length}개
-              </p>
-              <div className="flex flex-wrap gap-1.5">
-                {initialSelectedContents.map(item => (
-                  <Badge key={item.id} variant="outline" className="text-xs max-w-50 truncate">
-                    {item.title || item.text.slice(0, 20) + "…"}
-                  </Badge>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-
-        {related.length > 0 && (
+        {/* 선택된 글감 */}
+        {related.length > 0 ? (
           <div className="space-y-2">
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-              관련 글감 {related.length}개
+              선택한 글감 {related.length}개
             </p>
-            {related.map(item => (
-              <div
-                key={item.id}
-                className="rounded-lg border border-border bg-muted/30 p-3"
-              >
-                <p className="text-xs font-medium mb-1">
-                  {item.title || "(제목 없음)"}
-                </p>
-                <p className="text-xs text-muted-foreground line-clamp-2">
-                  {item.text}
-                </p>
-              </div>
-            ))}
+            <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+              {related.map(item => (
+                <div
+                  key={item.id}
+                  className="rounded-lg border border-border bg-muted/30 p-3"
+                >
+                  <p className="text-xs font-medium mb-0.5">
+                    {item.title || "(제목 없음)"}
+                  </p>
+                  <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
+                    {item.text}
+                  </p>
+                </div>
+              ))}
+            </div>
           </div>
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            글감 탭에서 글감을 선택하면 AI가 참고합니다.
+          </p>
         )}
+
+        {/* 주제 입력 */}
+        <div className="space-y-2">
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+            주제
+          </p>
+          <Input
+            placeholder="어떤 주제로 글을 쓸까요?"
+            value={topic}
+            onChange={e => setTopic(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === "Enter" && topic.trim()) handleDraft();
+            }}
+          />
+        </div>
 
         <div className="flex gap-2">
           <Button
@@ -279,14 +258,14 @@ export default function CowriteTab({
             AI와 토의하며 탐색
           </Button>
           <Button onClick={handleDraft} disabled={!topic.trim()}>
-            바로 초안 작성
+            초안 바로 작성
           </Button>
         </div>
       </div>
     );
   }
 
-  // ── Phase: discussing ────────────────────────────────────────
+  // ── Phase: discussing ─────────────────────────────────────────
   if (phase === "discussing") {
     return (
       <div className="flex flex-col max-w-2xl mx-auto" style={{ height: "calc(100vh - 160px)" }}>
@@ -359,7 +338,7 @@ export default function CowriteTab({
     );
   }
 
-  // ── Phase: drafting / revising ───────────────────────────────
+  // ── Phase: drafting / revising ────────────────────────────────
   if (phase === "drafting" || phase === "revising") {
     return (
       <div className="max-w-2xl mx-auto space-y-4">
@@ -380,7 +359,7 @@ export default function CowriteTab({
     );
   }
 
-  // ── Phase: draft_ready ───────────────────────────────────────
+  // ── Phase: draft_ready ────────────────────────────────────────
   if (phase === "draft_ready") {
     return (
       <div className="max-w-2xl mx-auto space-y-4">
@@ -395,11 +374,7 @@ export default function CowriteTab({
             >
               {judging ? "평가 중..." : "품질 평가"}
             </Button>
-            <Button
-              size="sm"
-              onClick={handleFinalize}
-              disabled={finalizing}
-            >
+            <Button size="sm" onClick={handleFinalize} disabled={finalizing}>
               {finalizing ? "저장 중..." : "원본 확정"}
             </Button>
           </div>
@@ -459,7 +434,7 @@ export default function CowriteTab({
     );
   }
 
-  // ── Phase: done ──────────────────────────────────────────────
+  // ── Phase: done ───────────────────────────────────────────────
   if (phase === "done") {
     return (
       <div className="max-w-2xl mx-auto text-center py-20 space-y-3">

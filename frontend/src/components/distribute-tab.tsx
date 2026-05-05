@@ -9,6 +9,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 type Platform = "instagram" | "brunch" | "thread";
 
+const cleanTag = (tag: string) => tag.replace(/^#+/, "");
+
 const PLATFORMS: { id: Platform; name: string; desc: string }[] = [
   { id: "instagram", name: "Instagram", desc: "캡션 + 해시태그" },
   { id: "brunch",    name: "브런치",    desc: "서사형 아티클" },
@@ -90,7 +92,7 @@ export default function DistributeTab({ contentId }: Props) {
       await api.publishInstagram(
         contentId!,
         result.instagram.caption,
-        result.instagram.hashtags,
+        result.instagram.hashtags.map(cleanTag),
         imageUrl
       );
       setSaved(prev => new Set([...prev, "instagram"]));
@@ -218,7 +220,7 @@ export default function DistributeTab({ contentId }: Props) {
             {result.instagram.hashtags.length > 0 && (
               <div className="flex gap-1.5 flex-wrap">
                 {result.instagram.hashtags.map(tag => (
-                  <span key={tag} className="text-xs text-primary/80">#{tag}</span>
+                  <span key={tag} className="text-xs text-primary/80">#{cleanTag(tag)}</span>
                 ))}
               </div>
             )}

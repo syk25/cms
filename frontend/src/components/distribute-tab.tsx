@@ -7,16 +7,25 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
+type Platform = "instagram" | "brunch" | "thread";
+
+const PLATFORMS: { id: Platform; name: string; desc: string }[] = [
+  { id: "instagram", name: "Instagram", desc: "캡션 + 해시태그" },
+  { id: "brunch",    name: "브런치",    desc: "서사형 아티클" },
+  { id: "thread",    name: "스레드",    desc: "3~5개 분절 포스트" },
+];
+
 interface Props {
   contentId: string | null;
 }
 
 export default function DistributeTab({ contentId }: Props) {
+  const [selected, setSelected] = useState<Set<Platform>>(new Set());
   const [converting, setConverting] = useState(false);
   const [result, setResult] = useState<api.ConvertResult | null>(null);
   const [imageUrl, setImageUrl] = useState("");
-  const [publishing, setPublishing] = useState<string | null>(null);
-  const [saved, setSaved] = useState<Set<string>>(new Set());
+  const [publishing, setPublishing] = useState<Platform | null>(null);
+  const [saved, setSaved] = useState<Set<Platform>>(new Set());
 
   if (!contentId) {
     return (
@@ -25,6 +34,15 @@ export default function DistributeTab({ contentId }: Props) {
         <p>글쓰기 탭에서 원본을 확정한 뒤 여기로 이동하세요.</p>
       </div>
     );
+  }
+
+  function togglePlatform(p: Platform) {
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (next.has(p)) next.delete(p);
+      else next.add(p);
+      return next;
+    });
   }
 
   async function handleConvert() {
@@ -39,6 +57,11 @@ export default function DistributeTab({ contentId }: Props) {
     } finally {
       setConverting(false);
     }
+  }
+
+  function handleReset() {
+    setResult(null);
+    setSaved(new Set());
   }
 
   async function handlePublishInstagram() {
@@ -85,10 +108,48 @@ export default function DistributeTab({ contentId }: Props) {
     }
   }
 
+  // ── 플랫폼 선택 화면 ──────────────────────────────────────────
   if (!result) {
     return (
-      <div className="flex flex-col items-center justify-center py-20 gap-3">
-        <Button size="lg" onClick={handleConvert} disabled={converting}>
+      <div className="max-w-xl mx-auto space-y-6">
+        <div>
+          <h2 className="font-semibold text-base mb-1">발행 플랫폼 선택</h2>
+          <p className="text-xs text-muted-foreground">변환할 플랫폼을 선택하세요.</p>
+        </div>
+
+        <div className="space-y-2">
+          {PLATFORMS.map(p => (
+            <button
+              key={p.id}
+              onClick={() => togglePlatform(p.id)}
+              className={`w-full text-left rounded-xl border p-4 transition-all ${
+                selected.has(p.id)
+                  ? "border-primary bg-primary/5 ring-1 ring-primary"
+                  : "border-border hover:border-muted-foreground/40 hover:bg-muted/30"
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium">{p.name}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">{p.desc}</p>
+                </div>
+                <div
+                  className={`size-4 rounded-full border-2 transition-colors ${
+                    selected.has(p.id)
+                      ? "border-primary bg-primary"
+                      : "border-muted-foreground/40"
+                  }`}
+                />
+              </div>
+            </button>
+          ))}
+        </div>
+
+        <Button
+          className="w-full"
+          onClick={handleConvert}
+          disabled={selected.size === 0 || converting}
+        >
           {converting ? (
             <span className="flex items-center gap-2">
               <svg className="size-4 animate-spin" viewBox="0 0 24 24" fill="none">
@@ -98,16 +159,14 @@ export default function DistributeTab({ contentId }: Props) {
               변환 중...
             </span>
           ) : (
-            "3개 플랫폼 동시 변환"
+            `${selected.size > 0 ? [...selected].map(p => PLATFORMS.find(pl => pl.id === p)?.name).join(" · ") : "플랫폼을 선택하세요"} 변환`
           )}
         </Button>
-        <p className="text-xs text-muted-foreground">
-          Instagram · 브런치 · 스레드 형식으로 동시 변환합니다
-        </p>
       </div>
     );
   }
 
+  // ── 변환 결과 화면 ────────────────────────────────────────────
   const threadPosts = Array.isArray(result.thread.body)
     ? result.thread.body
     : [result.thread.body];
@@ -116,119 +175,120 @@ export default function DistributeTab({ contentId }: Props) {
     <div className="space-y-4 max-w-3xl mx-auto">
       <div className="flex items-center justify-between">
         <h2 className="font-semibold text-sm">변환 결과</h2>
-        <Button variant="outline" size="sm" onClick={handleConvert} disabled={converting}>
-          재변환
+        <Button variant="outline" size="sm" onClick={handleReset}>
+          다시 선택
         </Button>
       </div>
 
-      {/* Instagram */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center justify-between text-sm">
-            <span>Instagram</span>
-            {saved.has("instagram") ? (
-              <Badge className="text-xs bg-emerald-500/20 text-emerald-400 border-emerald-500/30">
-                발행됨
-              </Badge>
-            ) : (
-              <Button
-                size="sm"
-                onClick={handlePublishInstagram}
-                disabled={publishing === "instagram" || !imageUrl.trim()}
-              >
-                {publishing === "instagram" ? "발행 중..." : "발행"}
-              </Button>
+      {selected.has("instagram") && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between text-sm">
+              <span>Instagram</span>
+              {saved.has("instagram") ? (
+                <Badge className="text-xs bg-emerald-500/20 text-emerald-400 border-emerald-500/30">
+                  발행됨
+                </Badge>
+              ) : (
+                <Button
+                  size="sm"
+                  onClick={handlePublishInstagram}
+                  disabled={publishing === "instagram" || !imageUrl.trim()}
+                >
+                  {publishing === "instagram" ? "발행 중..." : "발행"}
+                </Button>
+              )}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-sm whitespace-pre-wrap leading-relaxed">
+              {result.instagram.body}
+            </p>
+            {result.instagram.hashtags.length > 0 && (
+              <div className="flex gap-1.5 flex-wrap">
+                {result.instagram.hashtags.map(tag => (
+                  <span key={tag} className="text-xs text-primary/80">#{tag}</span>
+                ))}
+              </div>
             )}
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <p className="text-sm whitespace-pre-wrap leading-relaxed">
-            {result.instagram.body}
-          </p>
-          {result.instagram.hashtags.length > 0 && (
-            <div className="flex gap-1.5 flex-wrap">
-              {result.instagram.hashtags.map(tag => (
-                <span key={tag} className="text-xs text-primary/80">
-                  #{tag}
-                </span>
+            {!saved.has("instagram") && (
+              <Input
+                placeholder="이미지 URL (발행에 필요)"
+                value={imageUrl}
+                onChange={e => setImageUrl(e.target.value)}
+              />
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {selected.has("brunch") && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between text-sm">
+              <span>브런치</span>
+              {saved.has("brunch") ? (
+                <Badge className="text-xs bg-emerald-500/20 text-emerald-400 border-emerald-500/30">
+                  저장됨
+                </Badge>
+              ) : (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handlePublishBrunch}
+                  disabled={publishing === "brunch"}
+                >
+                  {publishing === "brunch" ? "저장 중..." : "저장"}
+                </Button>
+              )}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm whitespace-pre-wrap leading-relaxed line-clamp-8">
+              {result.brunch.body}
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {selected.has("thread") && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between text-sm">
+              <span>스레드</span>
+              {saved.has("thread") ? (
+                <Badge className="text-xs bg-emerald-500/20 text-emerald-400 border-emerald-500/30">
+                  저장됨
+                </Badge>
+              ) : (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handlePublishThread}
+                  disabled={publishing === "thread"}
+                >
+                  {publishing === "thread" ? "저장 중..." : "저장"}
+                </Button>
+              )}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {threadPosts.map((post, i) => (
+                <div
+                  key={i}
+                  className="rounded-lg border border-border bg-muted/30 p-3 text-sm leading-relaxed"
+                >
+                  <span className="text-xs text-muted-foreground mr-2 font-mono">
+                    {i + 1}/{threadPosts.length}
+                  </span>
+                  {post}
+                </div>
               ))}
             </div>
-          )}
-          {!saved.has("instagram") && (
-            <Input
-              placeholder="이미지 URL (발행에 필요)"
-              value={imageUrl}
-              onChange={e => setImageUrl(e.target.value)}
-            />
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Brunch */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center justify-between text-sm">
-            <span>브런치</span>
-            {saved.has("brunch") ? (
-              <Badge className="text-xs bg-emerald-500/20 text-emerald-400 border-emerald-500/30">
-                저장됨
-              </Badge>
-            ) : (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handlePublishBrunch}
-                disabled={publishing === "brunch"}
-              >
-                {publishing === "brunch" ? "저장 중..." : "저장"}
-              </Button>
-            )}
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm whitespace-pre-wrap leading-relaxed line-clamp-8">
-            {result.brunch.body}
-          </p>
-        </CardContent>
-      </Card>
-
-      {/* Thread */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center justify-between text-sm">
-            <span>스레드</span>
-            {saved.has("thread") ? (
-              <Badge className="text-xs bg-emerald-500/20 text-emerald-400 border-emerald-500/30">
-                저장됨
-              </Badge>
-            ) : (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handlePublishThread}
-                disabled={publishing === "thread"}
-              >
-                {publishing === "thread" ? "저장 중..." : "저장"}
-              </Button>
-            )}
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-2">
-            {threadPosts.map((post, i) => (
-              <div
-                key={i}
-                className="rounded-lg border border-border bg-muted/30 p-3 text-sm leading-relaxed"
-              >
-                <span className="text-xs text-muted-foreground mr-2 font-mono">
-                  {i + 1}/{threadPosts.length}
-                </span>
-                {post}
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

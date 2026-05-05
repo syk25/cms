@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import * as api from "@/lib/api";
 import IngestTab from "@/components/ingest-tab";
 import CowriteTab from "@/components/cowrite-tab";
 import DistributeTab from "@/components/distribute-tab";
@@ -12,15 +13,15 @@ type Tab = (typeof TABS)[number];
 export default function AppShell() {
   const [page, setPage] = useState<"landing" | "app">("landing");
   const [tab, setTab] = useState<Tab>("글감");
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [selectedContents, setSelectedContents] = useState<api.RawContent[]>([]);
   const [contentId, setContentId] = useState<string | null>(null);
 
   if (page === "landing") {
     return <LandingPage onStart={() => setPage("app")} />;
   }
 
-  function handleGoToWrite(ids: string[]) {
-    setSelectedIds(ids);
+  function handleGoToWrite(items: api.RawContent[]) {
+    setSelectedContents(items);
     setTab("글쓰기");
   }
 
@@ -31,7 +32,6 @@ export default function AppShell() {
 
   return (
     <div className="flex flex-col min-h-screen">
-      {/* Header */}
       <header className="border-b border-border px-6 py-3 flex items-center gap-3 shrink-0">
         <button
           onClick={() => setPage("landing")}
@@ -49,7 +49,6 @@ export default function AppShell() {
         )}
       </header>
 
-      {/* Tab nav */}
       <nav className="border-b border-border px-6 shrink-0">
         <div className="flex">
           {TABS.map(t => (
@@ -68,12 +67,11 @@ export default function AppShell() {
         </div>
       </nav>
 
-      {/* Tab content */}
       <main className="flex-1 p-6 overflow-auto">
         {tab === "글감" && <IngestTab onGoToWrite={handleGoToWrite} />}
         {tab === "글쓰기" && (
           <CowriteTab
-            initialSelectedIds={selectedIds}
+            initialSelectedContents={selectedContents}
             onFinalize={handleFinalize}
           />
         )}

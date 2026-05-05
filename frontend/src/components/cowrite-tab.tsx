@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import * as api from "@/lib/api";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -21,12 +22,12 @@ interface ChatMessage {
 }
 
 interface Props {
-  initialSelectedIds?: string[];
+  initialSelectedContents?: api.RawContent[];
   onFinalize: (contentId: string) => void;
 }
 
 export default function CowriteTab({
-  initialSelectedIds = [],
+  initialSelectedContents = [],
   onFinalize,
 }: Props) {
   const [phase, setPhase] = useState<Phase>("topic");
@@ -201,7 +202,7 @@ export default function CowriteTab({
         draftText,
         topic,
         [],
-        initialSelectedIds
+        initialSelectedContents.map(c => c.id)
       );
       onFinalize(result.content_id);
       setPhase("done");
@@ -232,10 +233,19 @@ export default function CowriteTab({
               {searching ? "검색 중..." : "글감 검색"}
             </Button>
           </div>
-          {initialSelectedIds.length > 0 && (
-            <p className="text-xs text-muted-foreground mt-2">
-              선택한 글감 {initialSelectedIds.length}개가 글쓰기에 연결됩니다.
-            </p>
+          {initialSelectedContents.length > 0 && (
+            <div className="mt-2 space-y-1.5">
+              <p className="text-xs font-medium text-muted-foreground">
+                선택한 글감 {initialSelectedContents.length}개
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {initialSelectedContents.map(item => (
+                  <Badge key={item.id} variant="outline" className="text-xs max-w-50 truncate">
+                    {item.title || item.text.slice(0, 20) + "…"}
+                  </Badge>
+                ))}
+              </div>
+            </div>
           )}
         </div>
 

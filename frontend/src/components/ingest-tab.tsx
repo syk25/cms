@@ -9,7 +9,7 @@ import { Progress } from "@/components/ui/progress";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 interface Props {
-  onGoToWrite: (selectedIds: string[]) => void;
+  onGoToWrite: (items: api.RawContent[]) => void;
 }
 
 const PAGE_SIZE = 20;
@@ -26,7 +26,7 @@ export default function IngestTab({ onGoToWrite }: Props) {
   const [pendingKeyword, setPendingKeyword] = useState("");
   const [usedFilter, setUsedFilter] = useState<UsedFilter>("all");
   const [page, setPage] = useState(0);
-  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [selected, setSelected] = useState<Map<string, api.RawContent>>(new Map());
   const syncCtrlRef = useRef<AbortController | null>(null);
 
   const load = useCallback(async (pg: number, kw: string, uf: UsedFilter) => {
@@ -75,15 +75,15 @@ export default function IngestTab({ onGoToWrite }: Props) {
     await api.clearContents();
     setItems([]);
     setTotal(0);
-    setSelected(new Set());
+    setSelected(new Map());
     setSyncEvent(null);
   }
 
-  function toggleSelect(id: string) {
+  function toggleSelect(item: api.RawContent) {
     setSelected(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      const next = new Map(prev);
+      if (next.has(item.id)) next.delete(item.id);
+      else next.set(item.id, item);
       return next;
     });
   }
@@ -197,7 +197,7 @@ export default function IngestTab({ onGoToWrite }: Props) {
               key={item.id}
               item={item}
               selected={selected.has(item.id)}
-              onToggle={() => toggleSelect(item.id)}
+              onToggle={() => toggleSelect(item)}
             />
           ))}
         </div>
@@ -232,12 +232,12 @@ export default function IngestTab({ onGoToWrite }: Props) {
       {selected.size > 0 && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 rounded-xl border border-border bg-card px-5 py-3 shadow-2xl">
           <span className="text-sm font-medium">{selected.size}개 선택됨</span>
-          <Button size="sm" onClick={() => onGoToWrite([...selected])}>
+          <Button size="sm" onClick={() => onGoToWrite([...selected.values()])}>
             선택 글감으로 글쓰기 →
           </Button>
           <button
             className="text-xs text-muted-foreground hover:text-foreground"
-            onClick={() => setSelected(new Set())}
+            onClick={() => setSelected(new Map())}
           >
             해제
           </button>

@@ -4,7 +4,7 @@ import streamlit as st
 
 API_BASE = os.getenv("API_BASE", "http://localhost:8000")
 
-st.set_page_config(page_title="CMS", layout="wide")
+st.set_page_config(page_title="Inkflow", layout="wide")
 st.title("콘텐츠 매니지먼트 서비스")
 
 tab_ingest, tab_write, tab_distribute = st.tabs(["글감 수집", "글 쓰기", "발행"])

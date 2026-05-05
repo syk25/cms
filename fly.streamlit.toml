@@ -1,4 +1,4 @@
-app = "cms-ui"
+app = "inkflow-ui"
 primary_region = "nrt"
 
 [build]
@@ -17,4 +17,4 @@ primary_region = "nrt"
   cpus = 1
 
 [env]
-  API_BASE = "https://cms-api.fly.dev"
+  API_BASE = "https://inkflow-api.fly.dev"

@@ -1,4 +1,4 @@
-app = "cms-api"
+app = "inkflow-api"
 primary_region = "nrt"
 
 [build]
@@ -17,6 +17,6 @@ primary_region = "nrt"
   cpus = 1
 
 [[mounts]]
-  source = "cms_chroma_data"
+  source = "inkflow_chroma_data"
   destination = "/data/chroma_db"
   initial_size = "1gb"

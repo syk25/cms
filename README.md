@@ -1,10 +1,10 @@
-# CMS — Content Management Service
+# Inkflow — Content Management Service
 
 > MVP (2026.04.26 ~ 2026.04.28)
 글감 하나를 수집·분류하고, RAG로 주제를 추천받아 초안을 함께 작성한 뒤,  
 LangGraph Multi-Agent로 인스타그램·브런치·스레드에 맞는 형태로 자동 변환·발행하는 콘텐츠 매니지먼트 시스템.
 
-**[UI 데모](https://cms-ui.fly.dev)** | **[API 문서](https://cms-api.fly.dev/docs)** | **[개발 과정 (Notion)](https://syk25.notion.site/34d134272658815d9eecce5383f18f51)**
+**[UI 데모](https://inkflow-ui.fly.dev)** | **[API 문서](https://inkflow-api.fly.dev/docs)** | **[개발 과정 (Notion)](https://syk25.notion.site/34d134272658815d9eecce5383f18f51)**
 
 ---
 
@@ -141,9 +141,9 @@ fly deploy --config fly.toml
 fly deploy --config fly.streamlit.toml
 ```
 
-- API: `https://cms-api.fly.dev`
-- UI: `https://cms-ui.fly.dev`
-- ChromaDB: Fly.io 퍼시스턴트 볼륨 (`cms_chroma_data`, 1 GB) 마운트
+- API: `https://inkflow-api.fly.dev`
+- UI: `https://inkflow-ui.fly.dev`
+- ChromaDB: Fly.io 퍼시스턴트 볼륨 (`inkflow_chroma_data`, 1 GB) 마운트
 - 리전: 도쿄 (`nrt`)
 
 ---

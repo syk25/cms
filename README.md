@@ -4,7 +4,7 @@
 > 글감 하나를 수집·분류하고, RAG로 주제를 추천받아 초안을 함께 작성한 뒤,  
 > LangGraph Multi-Agent로 인스타그램·브런치·스레드에 맞는 형태로 자동 변환·발행하는 콘텐츠 매니지먼트 시스템.
 
-**[UI 데모](https://inkflow-liard.vercel.app/)** | **[API 문서](https://inkflow-api.fly.dev/docs)** | **[개발 과정 (Notion)](https://syk25.notion.site/Inkflow-AI-35713427265881b3875bdc0b93add7df?source=copy_link)**
+**[UI 데모](https://inkflow-liard.vercel.app/)** | **[API 문서](https://inkflow-api.fly.dev/docs)** | **[개발 과정 (Notion)](https://syk25.notion.site/Inkflow-AI-35713427265881b3875bdc0b93add7df?source=copy_link)** | **[테스트 계정](https://www.instagram.com/life_gise/)**
 
 ---
 
